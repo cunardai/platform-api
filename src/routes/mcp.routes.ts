@@ -41,8 +41,9 @@ router.post('/', authenticate, async (req: Request, res: Response) => {
   const org = orgId(req)
   if (!org) return res.status(400).json({ success: false, error: { code: 'NO_ORG', message: 'org_id required — authenticate with an API key that has an org' } })
 
-  const { name, description, homepage_url, tags, is_public } = req.body as {
-    name?: string; description?: string; homepage_url?: string; tags?: string[]; is_public?: boolean
+  const { name, description, homepage_url, tags, is_public, credit_cost_per_call } = req.body as {
+    name?: string; description?: string; homepage_url?: string; tags?: string[]
+    is_public?: boolean; credit_cost_per_call?: number
   }
   if (!name?.trim()) return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'name is required' } })
 
@@ -53,7 +54,7 @@ router.post('/', authenticate, async (req: Request, res: Response) => {
     return res.status(402).json({ success: false, error: { code: 'LIMIT_REACHED', message: `Your ${tenant.plan} plan allows ${tenant.mcp_limit} MCPs. Upgrade to publish more.` } })
   }
 
-  const mcp = await createMcp({ org_id: org, name: name.trim(), description, homepage_url, tags, is_public, created_by: req.caller!.user_id })
+  const mcp = await createMcp({ org_id: org, name: name.trim(), description, homepage_url, tags, is_public, credit_cost_per_call, created_by: req.caller!.user_id })
   await recordUsage(org, 'mcp_created', { mcp_id: mcp.id })
   return res.status(201).json({ success: true, data: mcp })
 })

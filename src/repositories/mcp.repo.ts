@@ -10,6 +10,7 @@ export interface McpRecord {
   tags: string[]
   is_public: boolean
   is_verified: boolean
+  credit_cost_per_call: number
   created_by: string
   created_at: Date
   updated_at: Date
@@ -33,14 +34,15 @@ function slugify(name: string): string {
 
 export async function createMcp(opts: {
   org_id: string; name: string; description?: string
-  homepage_url?: string; tags?: string[]; is_public?: boolean; created_by: string
+  homepage_url?: string; tags?: string[]; is_public?: boolean
+  credit_cost_per_call?: number; created_by: string
 }): Promise<McpRecord> {
   const slug = slugify(opts.name) + '-' + Math.random().toString(36).slice(2, 6)
   const { rows } = await getPool().query<McpRecord>(
-    `INSERT INTO mcps (org_id, name, slug, description, homepage_url, tags, is_public, created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+    `INSERT INTO mcps (org_id, name, slug, description, homepage_url, tags, is_public, credit_cost_per_call, created_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
     [opts.org_id, opts.name, slug, opts.description ?? null, opts.homepage_url ?? null,
-     opts.tags ?? [], opts.is_public ?? true, opts.created_by],
+     opts.tags ?? [], opts.is_public ?? true, opts.credit_cost_per_call ?? 0, opts.created_by],
   )
   return rows[0]
 }
