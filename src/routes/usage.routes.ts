@@ -84,10 +84,18 @@ router.get('/timeseries', authenticate, async (req: Request, res: Response) => {
   const org = orgId(req)
   if (!org) return res.status(400).json({ success: false, error: { code: 'NO_ORG', message: 'Caller has no org_id' } })
 
-  const { resource_id, days } = req.query as Record<string, string | undefined>
-  const parsedDays = Math.min(parseInt(days ?? '30', 10), 90)
+  const { resource_id, days, from, to } = req.query as Record<string, string | undefined>
+  const parsedDays = days ? Math.min(parseInt(days, 10), 90) : undefined
+  const fromDate   = from ? new Date(from) : undefined
+  const toDate     = to   ? new Date(to)   : undefined
 
-  const data = await getUsageTimeseries({ org_id: org, days: parsedDays, resource_id: resource_id ?? undefined })
+  const data = await getUsageTimeseries({
+    org_id: org,
+    days: parsedDays,
+    from: fromDate,
+    to: toDate,
+    resource_id: resource_id ?? undefined,
+  })
   return res.json({ success: true, data })
 })
 

@@ -35,13 +35,23 @@ export interface UsageSummary {
 
 export async function getUsageTimeseries(opts: {
   org_id: string
+  from?: Date
+  to?: Date
   days?: number
   resource_id?: string
 }): Promise<TimeseriesDay[]> {
-  const days = Math.min(opts.days ?? 30, 90)
-  const conditions: string[] = ['org_id = $1', `created_at >= NOW() - INTERVAL '${days} days'`]
-  const params: unknown[] = [opts.org_id]
+  const toDate   = opts.to   ?? new Date()
+  const fromDate = opts.from ?? (() => {
+    const d = new Date(toDate)
+    d.setUTCDate(d.getUTCDate() - ((opts.days ?? 30) - 1))
+    return d
+  })()
 
+  const MS_PER_DAY = 86_400_000
+  const dayCount = Math.min(90, Math.ceil((toDate.getTime() - fromDate.getTime()) / MS_PER_DAY) + 1)
+
+  const conditions: string[] = ['org_id = $1', 'created_at >= $2', 'created_at <= $3']
+  const params: unknown[] = [opts.org_id, fromDate, toDate]
   if (opts.resource_id) { params.push(opts.resource_id); conditions.push(`resource_id = $${params.length}`) }
 
   const where = 'WHERE ' + conditions.join(' AND ')
@@ -56,10 +66,9 @@ export async function getUsageTimeseries(opts: {
   )
 
   const dayMap = new Map<string, TimeseriesDay>()
-  const now = new Date()
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(now)
-    d.setUTCDate(d.getUTCDate() - i)
+  for (let i = 0; i < dayCount; i++) {
+    const d = new Date(fromDate)
+    d.setUTCDate(d.getUTCDate() + i)
     const key = d.toISOString().slice(0, 10)
     dayMap.set(key, { date: key, total_credits: 0, total_events: 0, by_type: {} })
   }
