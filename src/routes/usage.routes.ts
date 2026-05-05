@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express'
 import { authenticate } from '../middleware/auth.middleware'
-import { recordUsageEvent, listUsageEvents, getUsageSummary } from '../repositories/usage.repo'
+import { recordUsageEvent, listUsageEvents, getUsageSummary, getUsageTimeseries } from '../repositories/usage.repo'
 import { getOrCreateTenant } from '../repositories/billing.repo'
 import { PLAN_LIMITS } from '../config'
 
@@ -76,6 +76,19 @@ router.get('/summary', authenticate, async (req: Request, res: Response) => {
     to:          to   ? new Date(to)   : undefined,
   })
   return res.json({ success: true, data: summary })
+})
+
+// ─── GET /usage/timeseries ─────────────────────────────────────────────────────
+
+router.get('/timeseries', authenticate, async (req: Request, res: Response) => {
+  const org = orgId(req)
+  if (!org) return res.status(400).json({ success: false, error: { code: 'NO_ORG', message: 'Caller has no org_id' } })
+
+  const { resource_id, days } = req.query as Record<string, string | undefined>
+  const parsedDays = Math.min(parseInt(days ?? '30', 10), 90)
+
+  const data = await getUsageTimeseries({ org_id: org, days: parsedDays, resource_id: resource_id ?? undefined })
+  return res.json({ success: true, data })
 })
 
 // ─── GET /usage/quota ──────────────────────────────────────────────────────────

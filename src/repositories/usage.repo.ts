@@ -19,11 +19,64 @@ export interface UsageEvent {
   created_at: Date
 }
 
+export interface TimeseriesDay {
+  date: string
+  total_credits: number
+  total_events: number
+  by_type: Record<string, { count: number; quantity: number; credits: number }>
+}
+
 export interface UsageSummary {
   total_credits: number
   total_quantity: number
   event_count: number
   by_event_type: Record<string, { count: number; quantity: number; credits: number }>
+}
+
+export async function getUsageTimeseries(opts: {
+  org_id: string
+  days?: number
+  resource_id?: string
+}): Promise<TimeseriesDay[]> {
+  const days = Math.min(opts.days ?? 30, 90)
+  const conditions: string[] = ['org_id = $1', `created_at >= NOW() - INTERVAL '${days} days'`]
+  const params: unknown[] = [opts.org_id]
+
+  if (opts.resource_id) { params.push(opts.resource_id); conditions.push(`resource_id = $${params.length}`) }
+
+  const where = 'WHERE ' + conditions.join(' AND ')
+  const { rows } = await getPool().query<{
+    day: Date; event_type: string; count: string; quantity: string; credits: string
+  }>(
+    `SELECT DATE_TRUNC('day', created_at) as day, event_type,
+            COUNT(*) as count, SUM(quantity) as quantity, COALESCE(SUM(credits), 0) as credits
+     FROM usage_events ${where}
+     GROUP BY day, event_type ORDER BY day ASC`,
+    params,
+  )
+
+  const dayMap = new Map<string, TimeseriesDay>()
+  const now = new Date()
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(now)
+    d.setUTCDate(d.getUTCDate() - i)
+    const key = d.toISOString().slice(0, 10)
+    dayMap.set(key, { date: key, total_credits: 0, total_events: 0, by_type: {} })
+  }
+
+  for (const r of rows) {
+    const key = new Date(r.day).toISOString().slice(0, 10)
+    const entry = dayMap.get(key)
+    if (!entry) continue
+    const count    = parseInt(r.count, 10)
+    const quantity = parseInt(r.quantity, 10)
+    const credits  = parseFloat(r.credits)
+    entry.by_type[r.event_type] = { count, quantity, credits }
+    entry.total_credits += credits
+    entry.total_events  += count
+  }
+
+  return Array.from(dayMap.values())
 }
 
 async function computeCredits(event_type: string, quantity: number, resource_id?: string): Promise<number> {
