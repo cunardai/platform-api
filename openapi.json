@@ -1,0 +1,425 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Platform API",
+    "version": "1.0.0",
+    "description": "MCP registry and billing API for the AGP platform."
+  },
+  "servers": [
+    { "url": "https://platform-api.cunardai.com", "description": "Production" },
+    { "url": "http://localhost:4000", "description": "Local" }
+  ],
+  "components": {
+    "securitySchemes": {
+      "ApiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Api-Key",
+        "description": "Service API key — format `sk_live_...`"
+      },
+      "BearerJWT": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "Mcp": {
+        "type": "object",
+        "properties": {
+          "id":                   { "type": "string", "format": "uuid" },
+          "org_id":               { "type": "string" },
+          "name":                 { "type": "string" },
+          "slug":                 { "type": "string" },
+          "description":          { "type": ["string", "null"] },
+          "homepage_url":         { "type": ["string", "null"] },
+          "tags":                 { "type": "array", "items": { "type": "string" } },
+          "is_public":            { "type": "boolean" },
+          "is_verified":          { "type": "boolean" },
+          "credit_cost_per_call": { "type": "number" },
+          "created_by":           { "type": "string" },
+          "created_at":           { "type": "string", "format": "date-time" },
+          "updated_at":           { "type": "string", "format": "date-time" }
+        }
+      },
+      "McpVersion": {
+        "type": "object",
+        "properties": {
+          "id":           { "type": "string", "format": "uuid" },
+          "mcp_id":       { "type": "string", "format": "uuid" },
+          "version":      { "type": "string", "example": "1.0.0" },
+          "endpoint_url": { "type": "string", "format": "uri" },
+          "schema_url":   { "type": ["string", "null"], "format": "uri" },
+          "changelog":    { "type": ["string", "null"] },
+          "published_by": { "type": "string" },
+          "published_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Plan": {
+        "type": "object",
+        "properties": {
+          "id":              { "type": "string", "enum": ["free", "starter", "pro", "enterprise"] },
+          "name":            { "type": "string" },
+          "price_usd":       { "type": ["number", "null"] },
+          "mcp_limit":       { "type": "integer" },
+          "api_calls_limit": { "type": "integer" },
+          "stripe_price":    { "type": "string" }
+        }
+      },
+      "Subscription": {
+        "type": "object",
+        "properties": {
+          "org_id":                 { "type": "string" },
+          "plan":                   { "type": "string" },
+          "status":                 { "type": "string" },
+          "mcp_limit":              { "type": "integer" },
+          "api_calls_limit":        { "type": "integer" },
+          "stripe_customer_id":     { "type": ["string", "null"] },
+          "stripe_subscription_id": { "type": ["string", "null"] },
+          "current_period_end":     { "type": ["string", "null"], "format": "date-time" },
+          "usage": {
+            "type": "object",
+            "properties": {
+              "mcp_created":          { "type": "integer" },
+              "mcp_version_published":{ "type": "integer" }
+            }
+          },
+          "limits": {
+            "type": "object",
+            "properties": {
+              "mcp_limit":       { "type": "integer" },
+              "api_calls_limit": { "type": "integer" }
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": false },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code":    { "type": "string" },
+              "message": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health check",
+        "operationId": "getHealth",
+        "tags": ["System"],
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status":    { "type": "string", "example": "ok" },
+                    "service":   { "type": "string", "example": "platform-api" },
+                    "timestamp": { "type": "string", "format": "date-time" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/mcps": {
+      "get": {
+        "summary": "List / browse MCPs",
+        "operationId": "listMcps",
+        "tags": ["MCPs"],
+        "parameters": [
+          { "name": "org",    "in": "query", "schema": { "type": "string" },  "description": "Filter by org ID — returns private MCPs for that org" },
+          { "name": "limit",  "in": "query", "schema": { "type": "integer", "default": 50, "maximum": 200 } },
+          { "name": "offset", "in": "query", "schema": { "type": "integer", "default": 0 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of MCPs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data":    { "type": "array", "items": { "$ref": "#/components/schemas/Mcp" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Register a new MCP",
+        "operationId": "createMcp",
+        "tags": ["MCPs"],
+        "security": [{ "ApiKey": [] }, { "BearerJWT": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name":                 { "type": "string" },
+                  "description":          { "type": "string" },
+                  "homepage_url":         { "type": "string", "format": "uri" },
+                  "tags":                 { "type": "array", "items": { "type": "string" } },
+                  "is_public":            { "type": "boolean", "default": false },
+                  "credit_cost_per_call": { "type": "number", "default": 0 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "MCP created",
+            "content": { "application/json": { "schema": { "type": "object", "properties": { "success": { "type": "boolean" }, "data": { "$ref": "#/components/schemas/Mcp" } } } } }
+          },
+          "400": { "description": "Validation error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "402": { "description": "Plan MCP limit reached", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/mcps/{idOrSlug}": {
+      "get": {
+        "summary": "Get an MCP by ID or slug",
+        "operationId": "getMcp",
+        "tags": ["MCPs"],
+        "parameters": [
+          { "name": "idOrSlug", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "MCP with versions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "allOf": [
+                        { "$ref": "#/components/schemas/Mcp" },
+                        { "type": "object", "properties": { "versions": { "type": "array", "items": { "$ref": "#/components/schemas/McpVersion" } } } }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": { "description": "Not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      },
+      "patch": {
+        "summary": "Update an MCP",
+        "operationId": "updateMcp",
+        "tags": ["MCPs"],
+        "security": [{ "ApiKey": [] }, { "BearerJWT": [] }],
+        "parameters": [
+          { "name": "idOrSlug", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name":         { "type": "string" },
+                  "description":  { "type": "string" },
+                  "homepage_url": { "type": "string", "format": "uri" },
+                  "tags":         { "type": "array", "items": { "type": "string" } },
+                  "is_public":    { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Updated MCP", "content": { "application/json": { "schema": { "type": "object", "properties": { "success": { "type": "boolean" }, "data": { "$ref": "#/components/schemas/Mcp" } } } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "404": { "description": "Not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      },
+      "delete": {
+        "summary": "Delete an MCP",
+        "operationId": "deleteMcp",
+        "tags": ["MCPs"],
+        "security": [{ "ApiKey": [] }, { "BearerJWT": [] }],
+        "parameters": [
+          { "name": "idOrSlug", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Deleted", "content": { "application/json": { "schema": { "type": "object", "properties": { "success": { "type": "boolean" }, "data": { "type": "object", "properties": { "message": { "type": "string" } } } } } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "404": { "description": "Not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/mcps/{id}/versions": {
+      "get": {
+        "summary": "List versions for an MCP",
+        "operationId": "listMcpVersions",
+        "tags": ["MCPs"],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of versions",
+            "content": { "application/json": { "schema": { "type": "object", "properties": { "success": { "type": "boolean" }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/McpVersion" } } } } } }
+          },
+          "404": { "description": "MCP not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      },
+      "post": {
+        "summary": "Publish a new version",
+        "operationId": "publishMcpVersion",
+        "tags": ["MCPs"],
+        "security": [{ "ApiKey": [] }, { "BearerJWT": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["version", "endpoint_url"],
+                "properties": {
+                  "version":      { "type": "string", "example": "1.2.0" },
+                  "endpoint_url": { "type": "string", "format": "uri" },
+                  "schema_url":   { "type": "string", "format": "uri" },
+                  "changelog":    { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Version published", "content": { "application/json": { "schema": { "type": "object", "properties": { "success": { "type": "boolean" }, "data": { "$ref": "#/components/schemas/McpVersion" } } } } } },
+          "400": { "description": "Validation error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "404": { "description": "MCP not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/billing/plans": {
+      "get": {
+        "summary": "List available plans",
+        "operationId": "listPlans",
+        "tags": ["Billing"],
+        "responses": {
+          "200": {
+            "description": "Array of plans",
+            "content": { "application/json": { "schema": { "type": "object", "properties": { "success": { "type": "boolean" }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/Plan" } } } } } }
+          }
+        }
+      }
+    },
+    "/billing/subscription": {
+      "get": {
+        "summary": "Get current subscription and usage",
+        "operationId": "getSubscription",
+        "tags": ["Billing"],
+        "security": [{ "ApiKey": [] }, { "BearerJWT": [] }],
+        "responses": {
+          "200": { "description": "Subscription details", "content": { "application/json": { "schema": { "type": "object", "properties": { "success": { "type": "boolean" }, "data": { "$ref": "#/components/schemas/Subscription" } } } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/billing/checkout": {
+      "post": {
+        "summary": "Create a Stripe checkout session",
+        "operationId": "createCheckout",
+        "tags": ["Billing"],
+        "security": [{ "ApiKey": [] }, { "BearerJWT": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["plan", "success_url", "cancel_url"],
+                "properties": {
+                  "plan":        { "type": "string", "enum": ["starter", "pro"] },
+                  "success_url": { "type": "string", "format": "uri" },
+                  "cancel_url":  { "type": "string", "format": "uri" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Checkout URL",
+            "content": { "application/json": { "schema": { "type": "object", "properties": { "success": { "type": "boolean" }, "data": { "type": "object", "properties": { "checkout_url": { "type": "string", "format": "uri" } } } } } } }
+          },
+          "400": { "description": "Invalid plan or missing URLs", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/billing/portal": {
+      "post": {
+        "summary": "Create a Stripe billing portal session",
+        "operationId": "createPortal",
+        "tags": ["Billing"],
+        "security": [{ "ApiKey": [] }, { "BearerJWT": [] }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "return_url": { "type": "string", "format": "uri" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Portal URL",
+            "content": { "application/json": { "schema": { "type": "object", "properties": { "success": { "type": "boolean" }, "data": { "type": "object", "properties": { "portal_url": { "type": "string", "format": "uri" } } } } } } }
+          },
+          "400": { "description": "No active subscription", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/billing/webhook": {
+      "post": {
+        "summary": "Stripe webhook receiver",
+        "operationId": "stripeWebhook",
+        "tags": ["Billing"],
+        "description": "Stripe sends signed events here. Verify using `STRIPE_WEBHOOK_SECRET`.",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "type": "object" } } }
+        },
+        "responses": {
+          "200": { "description": "Event acknowledged" },
+          "400": { "description": "Invalid signature" }
+        }
+      }
+    }
+  }
+}

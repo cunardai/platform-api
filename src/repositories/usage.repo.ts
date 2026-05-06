@@ -88,18 +88,33 @@ export async function getUsageTimeseries(opts: {
   return Array.from(dayMap.values())
 }
 
-async function computeCredits(event_type: string, quantity: number, resource_id?: string): Promise<number> {
-  let rate: number
+async function computeCredits(org_id: string, event_type: string, quantity: number, resource_id?: string, client_id?: string): Promise<number> {
+  // Client-specific rate takes highest precedence
+  if (client_id) {
+    const { rows: clientRows } = await getPool().query<{ credit_cost: string }>(
+      `SELECT credit_cost FROM event_type_configs WHERE org_id = $1 AND client_id = $2 AND event_type = $3`,
+      [org_id, client_id, event_type],
+    )
+    if (clientRows[0]) return parseFloat(clientRows[0].credit_cost) * quantity
+  }
+
+  // Org-wide rate (client_id IS NULL)
+  const { rows: cfgRows } = await getPool().query<{ credit_cost: string }>(
+    `SELECT credit_cost FROM event_type_configs WHERE org_id = $1 AND client_id IS NULL AND event_type = $2`,
+    [org_id, event_type],
+  )
+  if (cfgRows[0]) return parseFloat(cfgRows[0].credit_cost) * quantity
+
+  // mcp_invoke: look up the MCP's own credit_cost_per_call
   if (event_type === 'mcp_invoke' && resource_id) {
     const { rows } = await getPool().query<{ credit_cost_per_call: number }>(
       `SELECT credit_cost_per_call FROM mcps WHERE slug = $1`,
       [resource_id],
     )
-    rate = rows[0]?.credit_cost_per_call ?? DEFAULT_CREDIT_RATES.mcp_invoke
-  } else {
-    rate = DEFAULT_CREDIT_RATES[event_type] ?? 0
+    return (rows[0]?.credit_cost_per_call ?? DEFAULT_CREDIT_RATES.mcp_invoke) * quantity
   }
-  return rate * quantity
+
+  return (DEFAULT_CREDIT_RATES[event_type] ?? 0) * quantity
 }
 
 export async function recordUsageEvent(opts: {
@@ -108,16 +123,17 @@ export async function recordUsageEvent(opts: {
   quantity?: number
   resource_id?: string
   caller_id?: string
+  client_id?: string
   meta?: Record<string, unknown>
 }): Promise<UsageEvent> {
   const quantity = opts.quantity ?? 1
-  const credits = await computeCredits(opts.event_type, quantity, opts.resource_id)
+  const credits = await computeCredits(opts.org_id, opts.event_type, quantity, opts.resource_id, opts.client_id)
   const { rows } = await getPool().query<UsageEvent>(
-    `INSERT INTO usage_events (org_id, event_type, quantity, resource_id, caller_id, credits, meta)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `INSERT INTO usage_events (org_id, event_type, quantity, resource_id, caller_id, credits, meta, client_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING *`,
     [opts.org_id, opts.event_type, quantity, opts.resource_id ?? null,
-     opts.caller_id ?? null, credits, opts.meta ? JSON.stringify(opts.meta) : null],
+     opts.caller_id ?? null, credits, opts.meta ? JSON.stringify(opts.meta) : null, opts.client_id ?? null],
   )
   return rows[0]
 }
@@ -191,4 +207,65 @@ export async function getUsageSummary(opts: {
   }
 
   return { total_credits, total_quantity, event_count, by_event_type }
+}
+
+export interface EventTypeConfig {
+  id: string
+  org_id: string
+  client_id: string | null
+  client_type: string | null
+  event_type: string
+  credit_cost: string
+  description: string | null
+  created_at: Date
+  updated_at: Date
+}
+
+export async function listEventTypeConfigs(org_id: string, client_id?: string | null): Promise<EventTypeConfig[]> {
+  if (client_id != null) {
+    // Return configs for this specific client (client_id matches exactly)
+    const { rows } = await getPool().query<EventTypeConfig>(
+      `SELECT * FROM event_type_configs WHERE org_id = $1 AND client_id = $2 ORDER BY event_type ASC`,
+      [org_id, client_id],
+    )
+    return rows
+  }
+  // null or undefined → org-wide configs (client_id IS NULL)
+  const { rows } = await getPool().query<EventTypeConfig>(
+    `SELECT * FROM event_type_configs WHERE org_id = $1 AND client_id IS NULL ORDER BY event_type ASC`,
+    [org_id],
+  )
+  return rows
+}
+
+export async function upsertEventTypeConfig(opts: {
+  org_id: string
+  event_type: string
+  credit_cost: number
+  description?: string
+  client_id?: string | null
+  client_type?: string | null
+}): Promise<EventTypeConfig> {
+  const { rows } = await getPool().query<EventTypeConfig>(
+    `INSERT INTO event_type_configs (org_id, event_type, credit_cost, description, client_id, client_type)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     ON CONFLICT (org_id, event_type, (COALESCE(client_id, ''))) DO UPDATE
+       SET credit_cost  = EXCLUDED.credit_cost,
+           description  = EXCLUDED.description,
+           client_type  = EXCLUDED.client_type,
+           updated_at   = NOW()
+     RETURNING *`,
+    [opts.org_id, opts.event_type, opts.credit_cost, opts.description ?? null, opts.client_id ?? null, opts.client_type ?? null],
+  )
+  return rows[0]
+}
+
+export async function deleteEventTypeConfig(org_id: string, event_type: string, client_id?: string | null): Promise<boolean> {
+  const { rowCount } = await getPool().query(
+    client_id != null
+      ? `DELETE FROM event_type_configs WHERE org_id = $1 AND event_type = $2 AND client_id = $3`
+      : `DELETE FROM event_type_configs WHERE org_id = $1 AND event_type = $2 AND client_id IS NULL`,
+    client_id != null ? [org_id, event_type, client_id] : [org_id, event_type],
+  )
+  return (rowCount ?? 0) > 0
 }
