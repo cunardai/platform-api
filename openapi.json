@@ -93,6 +93,72 @@
           }
         }
       },
+      "UsageEvent": {
+        "type": "object",
+        "properties": {
+          "id":          { "type": "string", "format": "uuid" },
+          "org_id":      { "type": "string" },
+          "event_type":  { "type": "string" },
+          "quantity":    { "type": "integer" },
+          "resource_id": { "type": ["string", "null"] },
+          "caller_id":   { "type": ["string", "null"] },
+          "credits":     { "type": ["string", "null"] },
+          "meta":        { "type": ["object", "null"] },
+          "created_at":  { "type": "string", "format": "date-time" }
+        }
+      },
+      "EventTypeConfig": {
+        "type": "object",
+        "properties": {
+          "id":           { "type": "string", "format": "uuid" },
+          "org_id":       { "type": "string" },
+          "client_id":    { "type": ["string", "null"] },
+          "client_type":  { "type": ["string", "null"] },
+          "event_type":   { "type": "string" },
+          "credit_cost":  { "type": "string" },
+          "description":  { "type": ["string", "null"] },
+          "created_at":   { "type": "string", "format": "date-time" },
+          "updated_at":   { "type": "string", "format": "date-time" }
+        }
+      },
+      "UsageSummary": {
+        "type": "object",
+        "properties": {
+          "total_credits":  { "type": "number" },
+          "total_quantity": { "type": "integer" },
+          "event_count":    { "type": "integer" },
+          "by_event_type": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "count":    { "type": "integer" },
+                "quantity": { "type": "integer" },
+                "credits":  { "type": "number" }
+              }
+            }
+          }
+        }
+      },
+      "TimeseriesDay": {
+        "type": "object",
+        "properties": {
+          "date":           { "type": "string" },
+          "total_credits":  { "type": "number" },
+          "total_events":   { "type": "integer" },
+          "by_type": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "count":    { "type": "integer" },
+                "quantity": { "type": "integer" },
+                "credits":  { "type": "number" }
+              }
+            }
+          }
+        }
+      },
       "ErrorResponse": {
         "type": "object",
         "properties": {
@@ -418,6 +484,191 @@
         "responses": {
           "200": { "description": "Event acknowledged" },
           "400": { "description": "Invalid signature" }
+        }
+      }
+    },
+    "/usage/events": {
+      "post": {
+        "summary": "Record a usage event",
+        "operationId": "recordUsageEvent",
+        "tags": ["Usage"],
+        "security": [{ "ApiKey": [] }, { "BearerJWT": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["event_type"],
+                "properties": {
+                  "event_type":  { "type": "string" },
+                  "quantity":    { "type": "integer", "minimum": 1 },
+                  "resource_id": { "type": "string" },
+                  "client_id":   { "type": "string" },
+                  "meta":        { "type": "object" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Usage event recorded", "content": { "application/json": { "schema": { "type": "object", "properties": { "success": { "type": "boolean" }, "data": { "type": "object", "properties": { "id": { "type": "string", "format": "uuid" }, "credits": { "type": "number" } } } } } } } },
+          "400": { "description": "Validation error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      },
+      "get": {
+        "summary": "List usage events",
+        "operationId": "listUsageEvents",
+        "tags": ["Usage"],
+        "security": [{ "ApiKey": [] }, { "BearerJWT": [] }],
+        "parameters": [
+          { "name": "resource_id", "in": "query", "schema": { "type": "string" }, "description": "Filter by resource ID" },
+          { "name": "from", "in": "query", "schema": { "type": "string", "format": "date-time" }, "description": "Start date (ISO 8601)" },
+          { "name": "to", "in": "query", "schema": { "type": "string", "format": "date-time" }, "description": "End date (ISO 8601)" },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 50, "maximum": 200 } },
+          { "name": "offset", "in": "query", "schema": { "type": "integer", "default": 0 } }
+        ],
+        "responses": {
+          "200": { "description": "Paginated list of usage events", "content": { "application/json": { "schema": { "type": "object", "properties": { "success": { "type": "boolean" }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/UsageEvent" } }, "meta": { "type": "object", "properties": { "total": { "type": "integer" }, "limit": { "type": "integer" }, "offset": { "type": "integer" } } } } } } } },
+          "400": { "description": "Validation error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/usage/event-types": {
+      "get": {
+        "summary": "List event-type configs",
+        "operationId": "listEventTypeConfigs",
+        "tags": ["Usage"],
+        "security": [{ "ApiKey": [] }, { "BearerJWT": [] }],
+        "parameters": [
+          { "name": "client_id", "in": "query", "schema": { "type": "string" }, "description": "Filter by client ID; use `__all__` to get all configs" }
+        ],
+        "responses": {
+          "200": { "description": "Array of event-type configs", "content": { "application/json": { "schema": { "type": "object", "properties": { "success": { "type": "boolean" }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/EventTypeConfig" } } } } } } },
+          "400": { "description": "Validation error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/usage/event-types/{event_type}": {
+      "put": {
+        "summary": "Upsert an event-type config",
+        "operationId": "upsertEventTypeConfig",
+        "tags": ["Usage"],
+        "security": [{ "ApiKey": [] }, { "BearerJWT": [] }],
+        "parameters": [
+          { "name": "event_type", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["credit_cost"],
+                "properties": {
+                  "credit_cost":  { "type": "number", "minimum": 0 },
+                  "description":  { "type": "string" },
+                  "client_id":    { "type": "string" },
+                  "client_type":  { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Event-type config upserted", "content": { "application/json": { "schema": { "type": "object", "properties": { "success": { "type": "boolean" }, "data": { "$ref": "#/components/schemas/EventTypeConfig" } } } } } },
+          "400": { "description": "Validation error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      },
+      "delete": {
+        "summary": "Delete an event-type config",
+        "operationId": "deleteEventTypeConfig",
+        "tags": ["Usage"],
+        "security": [{ "ApiKey": [] }, { "BearerJWT": [] }],
+        "parameters": [
+          { "name": "event_type", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "client_id", "in": "query", "schema": { "type": "string" }, "description": "Delete a specific client-level config" }
+        ],
+        "responses": {
+          "200": { "description": "Config deleted", "content": { "application/json": { "schema": { "type": "object", "properties": { "success": { "type": "boolean" }, "data": { "type": "null" } } } } } },
+          "400": { "description": "Validation error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "404": { "description": "Not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/usage/summary": {
+      "get": {
+        "summary": "Get aggregated usage summary",
+        "operationId": "getUsageSummary",
+        "tags": ["Usage"],
+        "security": [{ "ApiKey": [] }, { "BearerJWT": [] }],
+        "parameters": [
+          { "name": "resource_id", "in": "query", "schema": { "type": "string" } },
+          { "name": "from", "in": "query", "schema": { "type": "string", "format": "date-time" } },
+          { "name": "to", "in": "query", "schema": { "type": "string", "format": "date-time" } }
+        ],
+        "responses": {
+          "200": { "description": "Usage summary", "content": { "application/json": { "schema": { "type": "object", "properties": { "success": { "type": "boolean" }, "data": { "$ref": "#/components/schemas/UsageSummary" } } } } } },
+          "400": { "description": "Validation error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/usage/timeseries": {
+      "get": {
+        "summary": "Get usage timeseries data",
+        "operationId": "getUsageTimeseries",
+        "tags": ["Usage"],
+        "security": [{ "ApiKey": [] }, { "BearerJWT": [] }],
+        "parameters": [
+          { "name": "resource_id", "in": "query", "schema": { "type": "string" } },
+          { "name": "days", "in": "query", "schema": { "type": "integer", "default": 30, "maximum": 90 }, "description": "Number of days to look back" },
+          { "name": "from", "in": "query", "schema": { "type": "string", "format": "date-time" } },
+          { "name": "to", "in": "query", "schema": { "type": "string", "format": "date-time" } }
+        ],
+        "responses": {
+          "200": { "description": "Timeseries data", "content": { "application/json": { "schema": { "type": "object", "properties": { "success": { "type": "boolean" }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/TimeseriesDay" } } } } } } },
+          "400": { "description": "Validation error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/usage/quota": {
+      "get": {
+        "summary": "Get current-period usage vs plan limits",
+        "operationId": "getUsageQuota",
+        "tags": ["Usage"],
+        "security": [{ "ApiKey": [] }, { "BearerJWT": [] }],
+        "responses": {
+          "200": {
+            "description": "Quota information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "plan":   { "type": "string" },
+                        "period": { "type": "object", "properties": { "start": { "type": "string", "format": "date-time" }, "end": { "type": "string", "format": "date-time" } } },
+                        "api_calls": { "type": "object", "properties": { "used": { "type": "integer" }, "limit": { "type": "integer" }, "pct": { "type": "integer" } } },
+                        "credits":   { "type": "object", "properties": { "used": { "type": "number" } } }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Validation error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
         }
       }
     }

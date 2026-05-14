@@ -165,3 +165,13 @@ migrations/
 API keys are issued by `auth-service` (`POST /api-keys`). Each key is scoped to the issuing org. The platform-api validates them by looking up the SHA-256 hash in the shared Neon `api_keys` table — no cross-service HTTP call needed.
 
 JWT bearer tokens are validated offline using the JWKS endpoint (`AUTH_SERVICE_JWKS_URI`). The JWKS client caches keys for 10 minutes.
+
+
+API keys are issued by the auth-service (separate repo at /Users/refat/Documents/Code/2026/auth-service/). To create one:
+curl -X POST https://auth-service-jet-seven.vercel.app/api-keys \
+  -H "Authorization: Bearer <your-jwt>" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "my-key", "scopes": ["usage:write"], "expires_in_days": 365}'
+The response includes the raw key (sk_live_...). You use it with the platform-api via the X-Api-Key header:
+curl -H "X-Api-Key: sk_live_<key>" https://platform-api-roan.vercel.app/usage/events
+The platform-api validates it by SHA-256 hash lookup in the shared Neon api_keys table — no cross-service call needed.
