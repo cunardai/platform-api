@@ -6,7 +6,8 @@ import { getOrCreateTenant, getTenant, setStripeCustomer, updateTenantFromStripe
 import { logger } from '../lib/logger'
 
 const router = Router()
-const stripe = new Stripe(config.stripe.secretKey)
+const stripeConfigured = config.stripe.secretKey && config.stripe.secretKey !== 'sk_test_placeholder'
+const stripe = stripeConfigured ? new Stripe(config.stripe.secretKey) : null
 
 function orgId(req: Request): string | null {
   return req.caller?.org_id ?? null
@@ -39,6 +40,8 @@ router.get('/plans', (_req: Request, res: Response) => {
 // ─── POST /billing/checkout ───────────────────────────────────────────────────
 
 router.post('/checkout', authenticate, async (req: Request, res: Response) => {
+  if (!stripe) return res.status(503).json({ success: false, error: { code: 'STRIPE_NOT_CONFIGURED', message: 'Billing is not configured. Contact enterprise@cunardai.com to upgrade.' } })
+
   const org = orgId(req)
   if (!org) return res.status(400).json({ success: false, error: { code: 'NO_ORG', message: 'org_id required' } })
 
@@ -65,13 +68,15 @@ router.post('/checkout', authenticate, async (req: Request, res: Response) => {
 // ─── POST /billing/portal ─────────────────────────────────────────────────────
 
 router.post('/portal', authenticate, async (req: Request, res: Response) => {
+  if (!stripe) return res.status(503).json({ success: false, error: { code: 'STRIPE_NOT_CONFIGURED', message: 'Billing is not configured. Contact enterprise@cunardai.com to upgrade.' } })
+
   const org = orgId(req)
   if (!org) return res.status(400).json({ success: false, error: { code: 'NO_ORG', message: 'org_id required' } })
   const tenant = await getTenant(org)
   if (!tenant?.stripe_customer_id) return res.status(400).json({ success: false, error: { code: 'NO_SUBSCRIPTION', message: 'No active subscription found' } })
 
   const { return_url } = req.body as { return_url?: string }
-  const session = await stripe.billingPortal.sessions.create({
+  const session = await stripe!.billingPortal.sessions.create({
     customer: tenant.stripe_customer_id,
     return_url: return_url ?? config.appBaseUrl,
   })
