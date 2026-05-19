@@ -29,4 +29,8 @@ jobs:
           file: ./Dockerfile
           platforms: linux/amd64
           push: true
-          tags: arnabmitrabian/platform-api:r1
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/platform-api:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/platform-api:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
