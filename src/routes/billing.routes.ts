@@ -91,6 +91,7 @@ router.post('/webhook', async (req: Request, res: Response) => {
   let event: any
 
   try {
+    if (!stripe) return res.status(503).json({ error: 'Billing not configured' })
     event = stripe.webhooks.constructEvent(req.body as Buffer, sig, config.stripe.webhookSecret)
   } catch (err) {
     logger.warn('Stripe webhook signature invalid', { error: String(err) })
