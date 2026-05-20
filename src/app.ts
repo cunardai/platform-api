@@ -8,6 +8,7 @@ import { errorHandler } from './middleware/auth.middleware'
 import mcpRoutes from './routes/mcp.routes'
 import billingRoutes from './routes/billing.routes'
 import usageRoutes from './routes/usage.routes'
+import agentRoutes from './routes/agent.routes'
 
 export const app = express()
 
@@ -82,6 +83,7 @@ window.onload = function() {
 app.use('/mcps', mcpRoutes)
 app.use('/billing', billingRoutes)
 app.use('/usage', usageRoutes)
+app.use('/agents', agentRoutes)
 
 // ─── 404 + error handler ──────────────────────────────────────────────────────
 

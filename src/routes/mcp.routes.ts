@@ -89,10 +89,10 @@ router.post('/:id/versions', authenticate, async (req: Request, res: Response) =
   const mcp = await getMcpById((req.params as { id: string }).id)
   if (!mcp || mcp.org_id !== org) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'MCP not found' } })
 
-  const { version, endpoint_url, schema_url, changelog } = req.body as Record<string, string>
+  const { version, endpoint_url, schema_url, changelog, transport_type, auth_header } = req.body as Record<string, string>
   if (!version || !endpoint_url) return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'version and endpoint_url are required' } })
 
-  const v = await publishVersion({ mcp_id: mcp.id, version, endpoint_url, schema_url, changelog, published_by: req.caller!.user_id })
+  const v = await publishVersion({ mcp_id: mcp.id, version, endpoint_url, schema_url, changelog, transport_type, auth_header, published_by: req.caller!.user_id })
   await recordUsage(org, 'mcp_version_published', { mcp_id: mcp.id, version })
   return res.status(201).json({ success: true, data: v })
 })

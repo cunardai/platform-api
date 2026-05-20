@@ -24,6 +24,8 @@ export interface McpVersionRecord {
   schema_url: string | null
   changelog: string | null
   is_latest: boolean
+  transport_type: 'http' | 'sse' | 'stdio'
+  auth_header: string | null
   published_by: string
   published_at: Date
 }
@@ -93,16 +95,16 @@ export async function deleteMcp(id: string, org_id: string): Promise<boolean> {
 
 export async function publishVersion(opts: {
   mcp_id: string; version: string; endpoint_url: string
-  schema_url?: string; changelog?: string; published_by: string
+  schema_url?: string; changelog?: string; transport_type?: string; auth_header?: string; published_by: string
 }): Promise<McpVersionRecord> {
   const client = await getPool().connect()
   try {
     await client.query('BEGIN')
     await client.query(`UPDATE mcp_versions SET is_latest = false WHERE mcp_id = $1`, [opts.mcp_id])
     const { rows } = await client.query<McpVersionRecord>(
-      `INSERT INTO mcp_versions (mcp_id, version, endpoint_url, schema_url, changelog, is_latest, published_by)
-       VALUES ($1,$2,$3,$4,$5,true,$6) RETURNING *`,
-      [opts.mcp_id, opts.version, opts.endpoint_url, opts.schema_url ?? null, opts.changelog ?? null, opts.published_by],
+      `INSERT INTO mcp_versions (mcp_id, version, endpoint_url, schema_url, changelog, transport_type, auth_header, is_latest, published_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,true,$8) RETURNING *`,
+      [opts.mcp_id, opts.version, opts.endpoint_url, opts.schema_url ?? null, opts.changelog ?? null, opts.transport_type ?? 'http', opts.auth_header ?? null, opts.published_by],
     )
     await client.query(`UPDATE mcps SET updated_at = NOW() WHERE id = $1`, [opts.mcp_id])
     await client.query('COMMIT')
