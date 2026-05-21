@@ -68,6 +68,9 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
         res.status(401).json({ success: false, error: { code: 'INVALID_API_KEY', message: 'API key is invalid, expired, or revoked' } })
         return
       }
+      // Allow trusted service to specify which org it's acting on behalf of
+      const orgOverride = req.headers['x-org-id'] as string | undefined
+      if (orgOverride && !record.org_id) record.org_id = orgOverride
       req.caller = { ...record, via: 'api_key' }
       next()
       return
