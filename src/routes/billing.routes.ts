@@ -105,6 +105,18 @@ router.post('/webhook', async (req: Request, res: Response) => {
       case 'checkout.session.completed':
         if (obj.customer && obj.client_reference_id) {
           await setStripeCustomer(obj.client_reference_id as string, obj.customer as string)
+          // Retrieve and apply subscription immediately — avoids race with subscription.created
+          if (stripe && obj.subscription) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const sub = await stripe.subscriptions.retrieve(obj.subscription as string) as any
+            await updateTenantFromStripe({
+              stripe_customer_id:     obj.customer as string,
+              stripe_subscription_id: sub.id as string,
+              plan:   detectPlan(sub),
+              status: sub.status as string,
+              current_period_end: new Date((sub.current_period_end as number) * 1000),
+            })
+          }
         }
         break
       case 'customer.subscription.updated':
