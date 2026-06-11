@@ -25,6 +25,9 @@ export const config = {
     },
   },
   appBaseUrl: requireEnv('APP_BASE_URL', 'http://localhost:3004'),
+  // Shared secret for internal service-to-service calls (e.g. Schema Studio
+  // recording AI usage). Empty = service-token auth disabled.
+  serviceToken: process.env.PLATFORM_SERVICE_TOKEN || '',
 }
 
 export const PLAN_LIMITS: Record<string, { mcp_limit: number; api_calls_limit: number }> = {

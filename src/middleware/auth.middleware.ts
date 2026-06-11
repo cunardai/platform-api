@@ -13,7 +13,7 @@ declare global {
         user_id: string
         org_id: string | null
         scopes: string[]
-        via: 'jwt' | 'api_key'
+        via: 'jwt' | 'api_key' | 'service'
       }
     }
   }
@@ -60,6 +60,25 @@ async function verifyApiKey(raw: string): Promise<{ user_id: string; org_id: str
 export async function authenticate(req: Request, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers.authorization
   const apiKey = req.headers['x-api-key'] as string | undefined
+
+  // Internal service-to-service auth (e.g. Schema Studio recording usage). A
+  // trusted backend presents the shared service token and the org to act for
+  // via X-On-Behalf-Of-Org. Only enabled when PLATFORM_SERVICE_TOKEN is set.
+  const serviceToken = req.headers['x-service-token'] as string | undefined
+  if (config.serviceToken && serviceToken) {
+    if (serviceToken !== config.serviceToken) {
+      res.status(401).json({ success: false, error: { code: 'INVALID_SERVICE_TOKEN', message: 'Service token is invalid' } })
+      return
+    }
+    req.caller = {
+      user_id: 'service',
+      org_id: (req.headers['x-on-behalf-of-org'] as string | undefined)?.trim() || null,
+      scopes: ['service'],
+      via: 'service',
+    }
+    next()
+    return
+  }
 
   if (apiKey?.startsWith('sk_live_')) {
     try {

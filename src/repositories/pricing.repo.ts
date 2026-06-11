@@ -49,7 +49,15 @@ export interface CostBreakdown {
 const MTOK = 1_000_000
 
 export async function getModelRate(model: string): Promise<ModelRate | null> {
-  const { rows } = await getPool().query<ModelRate>(`SELECT * FROM model_rates WHERE model = $1`, [model])
+  // The API returns dated ids (e.g. claude-haiku-4-5-20251001) while rates are
+  // keyed on the alias (claude-haiku-4-5). Try the exact id first, then the
+  // date-stripped alias, so pricing is robust to either form.
+  const candidates = [model, model.replace(/-\d{8}$/, '')]
+  const { rows } = await getPool().query<ModelRate>(
+    `SELECT * FROM model_rates WHERE model = ANY($1)
+     ORDER BY array_position($1, model) LIMIT 1`,
+    [candidates],
+  )
   return rows[0] ?? null
 }
 
