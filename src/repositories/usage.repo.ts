@@ -29,8 +29,9 @@ export interface TimeseriesDay {
 export interface UsageSummary {
   total_credits: number
   total_quantity: number
+  total_cost_usd: number
   event_count: number
-  by_event_type: Record<string, { count: number; quantity: number; credits: number }>
+  by_event_type: Record<string, { count: number; quantity: number; credits: number; cost_usd: number }>
 }
 
 export async function getUsageTimeseries(opts: {
@@ -184,9 +185,10 @@ export async function getUsageSummary(opts: {
   const where = 'WHERE ' + conditions.join(' AND ')
 
   const { rows } = await getPool().query<{
-    event_type: string; count: string; quantity: string; credits: string
+    event_type: string; count: string; quantity: string; credits: string; cost: string
   }>(
-    `SELECT event_type, COUNT(*) as count, SUM(quantity) as quantity, COALESCE(SUM(credits), 0) as credits
+    `SELECT event_type, COUNT(*) as count, SUM(quantity) as quantity,
+            COALESCE(SUM(credits), 0) as credits, COALESCE(SUM(raw_cost_usd), 0) as cost
      FROM usage_events ${where} GROUP BY event_type`,
     params,
   )
@@ -194,19 +196,22 @@ export async function getUsageSummary(opts: {
   const by_event_type: UsageSummary['by_event_type'] = {}
   let total_credits = 0
   let total_quantity = 0
+  let total_cost_usd = 0
   let event_count = 0
 
   for (const r of rows) {
     const count    = parseInt(r.count, 10)
     const quantity = parseInt(r.quantity, 10)
     const credits  = parseFloat(r.credits)
-    by_event_type[r.event_type] = { count, quantity, credits }
+    const cost_usd = parseFloat(r.cost)
+    by_event_type[r.event_type] = { count, quantity, credits, cost_usd }
     total_credits  += credits
     total_quantity += quantity
+    total_cost_usd += cost_usd
     event_count    += count
   }
 
-  return { total_credits, total_quantity, event_count, by_event_type }
+  return { total_credits, total_quantity, total_cost_usd, event_count, by_event_type }
 }
 
 export interface EventTypeConfig {
