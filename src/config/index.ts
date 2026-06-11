@@ -1,5 +1,7 @@
 import dotenv from 'dotenv'
-dotenv.config()
+// .env.local (gitignored) wins over .env, so local Docker dev can override the
+// hosted defaults without editing the committed/shared .env. First file wins.
+dotenv.config({ path: ['.env.local', '.env'] })
 
 function requireEnv(name: string, fallback?: string): string {
   const value = process.env[name]
