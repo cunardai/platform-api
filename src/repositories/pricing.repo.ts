@@ -165,6 +165,7 @@ export async function computeCredits(opts: {
     getModelRate(opts.model),
     resolvePricingConfig(opts.org_id, opts.deployment_id),
   ])
+  if (!rate) console.warn(`[pricing] no model_rate for "${opts.model}" — charging 0 credits. Seed it in model_rates.`)
   const raw_cost_usd = rate ? computeRawCostUsd(rate, opts.tokens) : 0
   const credits = cfg.markup > 0 && cfg.credit_unit_usd > 0
     ? Math.ceil((raw_cost_usd * cfg.markup) / cfg.credit_unit_usd)
