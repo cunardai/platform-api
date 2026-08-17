@@ -1,12 +1,27 @@
 /**
  * One-time script: creates the api_keys table if missing, then inserts a new sk_live_ key.
  * Run with: node scripts/create-api-key.mjs
+ *
+ * WARNING: this mints a REAL, LIVE `sk_live_` API key with usage:read/usage:write scopes
+ * and prints the raw secret to stdout. Treat the output as a credential. It refuses to run
+ * when NODE_ENV=production unless you pass --force.
  */
 import crypto from 'crypto'
 import pg from 'pg'
 import { config } from 'dotenv'
 
 config()
+
+// ─── Production safety guard ───────────────────────────────────────────────────
+const FORCE = process.argv.includes('--force')
+if (process.env.NODE_ENV === 'production' && !FORCE) {
+  console.error('Refusing to create a live API key with NODE_ENV=production.')
+  console.error('This mints a real sk_live_ credential. Re-run with --force only if you are certain.')
+  process.exit(1)
+}
+if (process.env.NODE_ENV === 'production' && FORCE) {
+  console.warn('NODE_ENV=production and --force supplied — minting a REAL live API key.')
+}
 
 const { Pool } = pg
 const pool = new Pool({ connectionString: process.env.DATABASE_URL })

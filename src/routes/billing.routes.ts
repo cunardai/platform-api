@@ -3,6 +3,7 @@ import Stripe from 'stripe'
 import { authenticate } from '../middleware/auth.middleware'
 import { config, PLAN_LIMITS } from '../config'
 import { getOrCreateTenant, getTenant, setStripeCustomer, updateTenantFromStripe, getUsageCounts } from '../repositories/billing.repo'
+import { serializeTenantSubscription, isOwnerOf } from '../security/serializers'
 import { logger } from '../lib/logger'
 
 const router = Router()
@@ -20,7 +21,9 @@ router.get('/subscription', authenticate, async (req: Request, res: Response) =>
   if (!org) return res.status(400).json({ success: false, error: { code: 'NO_ORG', message: 'org_id required' } })
   const tenant = await getOrCreateTenant(org)
   const usage = await getUsageCounts(org)
-  return res.json({ success: true, data: { ...tenant, usage, limits: PLAN_LIMITS[tenant.plan] ?? PLAN_LIMITS.free } })
+  // Caller owns this org → full Stripe ids; serializer masks them for any non-owner read path.
+  const safeTenant = serializeTenantSubscription(tenant, { isOwner: isOwnerOf(org, tenant.org_id), isAuthenticated: !!req.caller })
+  return res.json({ success: true, data: { ...safeTenant, usage, limits: PLAN_LIMITS[tenant.plan] ?? PLAN_LIMITS.free } })
 })
 
 // ─── GET /billing/plans ───────────────────────────────────────────────────────

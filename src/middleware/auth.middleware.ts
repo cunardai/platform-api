@@ -102,6 +102,42 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
   res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Provide Authorization: Bearer <token> or X-Api-Key: sk_live_...' } })
 }
 
+/**
+ * Best-effort authentication for public/browse routes. Populates `req.caller` when valid
+ * credentials are supplied, but never rejects the request — anonymous callers proceed with
+ * no caller set. Serializers then decide owner-vs-public visibility. Used on routes that must
+ * stay publicly readable yet return extra fields (e.g. a publisher's own `auth_header`) to the
+ * authenticated owner.
+ */
+export async function optionalAuthenticate(req: Request, _res: Response, next: NextFunction): Promise<void> {
+  const authHeader = req.headers.authorization
+  const apiKey = req.headers['x-api-key'] as string | undefined
+
+  if (!authHeader && !apiKey) return next()
+
+  try {
+    if (apiKey?.startsWith('sk_live_')) {
+      const record = await verifyApiKey(apiKey)
+      if (record) {
+        const orgOverride = req.headers['x-org-id'] as string | undefined
+        if (orgOverride && !record.org_id) record.org_id = orgOverride
+        req.caller = { ...record, via: 'api_key' }
+      }
+    } else if (authHeader?.startsWith('Bearer ')) {
+      const payload = await verifyJwt(authHeader.slice(7))
+      req.caller = {
+        user_id: payload.sub ?? '',
+        org_id: (payload.org_id as string) ?? null,
+        scopes: (payload.scope as string ?? '').split(' ').filter(Boolean),
+        via: 'jwt',
+      }
+    }
+  } catch {
+    // Invalid credentials on a public route → proceed as anonymous.
+  }
+  next()
+}
+
 export function errorHandler(err: Error, _req: Request, res: Response, _next: NextFunction): void {
   logger.error('Unhandled error', { error: err.message, stack: err.stack })
   res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' } })

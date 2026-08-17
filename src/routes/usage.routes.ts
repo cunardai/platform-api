@@ -4,6 +4,7 @@ import { recordUsageEvent, listUsageEvents, getUsageSummary, getUsageTimeseries,
 import { getOrCreateTenant } from '../repositories/billing.repo'
 import { getPool } from '../config/postgres'
 import { PLAN_LIMITS } from '../config'
+import { serializeUsageEvents, isOwnerOf } from '../security/serializers'
 
 const router = Router()
 
@@ -62,7 +63,9 @@ router.get('/events', authenticate, async (req: Request, res: Response) => {
     limit:       parsedLimit,
     offset:      parsedOffset,
   })
-  return res.json({ success: true, data: events, meta: { total, limit: parsedLimit, offset: parsedOffset } })
+  // Owner reads pass through; the serializer masks meta/caller_id for any non-owner read path.
+  const serialized = serializeUsageEvents(events, { isOwner: isOwnerOf(org, org), isAuthenticated: !!req.caller })
+  return res.json({ success: true, data: serialized, meta: { total, limit: parsedLimit, offset: parsedOffset } })
 })
 
 // ─── GET /usage/event-types ────────────────────────────────────────────────────

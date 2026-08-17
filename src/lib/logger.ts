@@ -1,11 +1,16 @@
+import { deepMaskObject, redactSecretsInString } from '../security/masking/mask'
+
 const isProduction = process.env.NODE_ENV === 'production'
 
 function log(level: string, message: string, meta?: object) {
-  const entry = { timestamp: new Date().toISOString(), level, message, ...meta }
+  // A.8.11 / A.8.15: scrub secrets, emails and IPs from log output.
+  const safeMessage = redactSecretsInString(message)
+  const safeMeta = meta ? (deepMaskObject(meta) as Record<string, unknown>) : undefined
+  const entry = { timestamp: new Date().toISOString(), level, message: safeMessage, ...(safeMeta ?? {}) }
   if (isProduction) {
     process.stdout.write(JSON.stringify(entry) + '\n')
   } else {
-    console.log(`[${level.toUpperCase()}] ${message}`, meta ?? '')
+    console.log(`[${level.toUpperCase()}] ${safeMessage}`, safeMeta ?? '')
   }
 }
 

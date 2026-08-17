@@ -3,3 +3,13 @@ node_modules/
 dist/
 .vercel
 .env*.local
+
+# ─── Secret / environment files (A.8.11, A.5.10) ──────────────────────────────
+# Never commit live secret files. `.env.example` (leading dot) is intentionally NOT matched.
+env.*
+env.production*
+*.local
+# Editor/Finder "copy" duplicates that often contain live secrets
+* copy
+*.local copy
+*.local\ copy

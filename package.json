@@ -6,7 +6,9 @@
     "dev":     "tsx watch src/index.ts",
     "build":   "tsc",
     "start":   "node dist/index.js",
-    "migrate": "tsx src/db/migrate.ts"
+    "migrate": "tsx src/db/migrate.ts",
+    "migrate:encrypt-auth-header": "tsx src/migrations/encrypt-auth-header.ts",
+    "test":    "node --import tsx --test src/security/masking/mask.test.ts src/security/crypto.test.ts src/security/serializers.test.ts"
   },
   "keywords": [],
   "author": "",

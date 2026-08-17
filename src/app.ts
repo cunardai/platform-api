@@ -26,7 +26,9 @@ app.use(helmet({
   },
 }))
 app.use(cors({ origin: true, credentials: true }))
-app.use(morgan('combined'))
+// A.8.11 / A.5.34: request logging without client IP (:remote-addr) or referrer to avoid
+// persisting personal data / network identifiers in access logs.
+app.use(morgan(':method :url :status :res[content-length] - :response-time ms'))
 
 // Raw body needed for Stripe webhook signature verification
 app.use('/billing/webhook', express.raw({ type: 'application/json' }))

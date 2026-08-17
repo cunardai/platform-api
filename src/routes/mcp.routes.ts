@@ -1,8 +1,9 @@
 import { Router, Request, Response } from 'express'
-import { authenticate } from '../middleware/auth.middleware'
+import { authenticate, optionalAuthenticate } from '../middleware/auth.middleware'
 import { createMcp, listMcps, getMcpById, getMcpBySlug, updateMcp, deleteMcp, publishVersion, listVersions } from '../repositories/mcp.repo'
 import { getOrCreateTenant, recordUsage } from '../repositories/billing.repo'
 import { getPool } from '../config/postgres'
+import { serializeMcpVersion, serializeMcpVersions, isOwnerOf } from '../security/serializers'
 
 const router = Router()
 
@@ -25,14 +26,16 @@ router.get('/', async (req: Request, res: Response) => {
 
 // ─── GET /mcps/:idOrSlug ──────────────────────────────────────────────────────
 
-router.get('/:idOrSlug', async (req: Request, res: Response) => {
+router.get('/:idOrSlug', optionalAuthenticate, async (req: Request, res: Response) => {
   const { idOrSlug } = req.params as { idOrSlug: string }
   const mcp = idOrSlug.includes('-') && idOrSlug.length < 36
     ? await getMcpBySlug(idOrSlug)
     : (await getMcpById(idOrSlug)) ?? await getMcpBySlug(idOrSlug)
   if (!mcp) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'MCP not found' } })
   const versions = await listVersions(mcp.id)
-  return res.json({ success: true, data: { ...mcp, versions } })
+  // auth_header (upstream credential) is returned ONLY to the authenticated org that owns this MCP.
+  const ctx = { isOwner: isOwnerOf(req.caller?.org_id, mcp.org_id), isAuthenticated: !!req.caller }
+  return res.json({ success: true, data: { ...mcp, versions: serializeMcpVersions(versions, ctx) } })
 })
 
 // ─── POST /mcps — register a new MCP ─────────────────────────────────────────
@@ -94,16 +97,19 @@ router.post('/:id/versions', authenticate, async (req: Request, res: Response) =
 
   const v = await publishVersion({ mcp_id: mcp.id, version, endpoint_url, schema_url, changelog, transport_type, auth_header, published_by: req.caller!.user_id })
   await recordUsage(org, 'mcp_version_published', { mcp_id: mcp.id, version })
-  return res.status(201).json({ success: true, data: v })
+  // Caller is the publisher (owner) → return the decrypted auth_header they just supplied.
+  return res.status(201).json({ success: true, data: serializeMcpVersion(v, { isOwner: true, isAuthenticated: true }) })
 })
 
 // ─── GET /mcps/:id/versions ───────────────────────────────────────────────────
 
-router.get('/:id/versions', async (req: Request, res: Response) => {
+router.get('/:id/versions', optionalAuthenticate, async (req: Request, res: Response) => {
   const mcp = await getMcpById((req.params as { id: string }).id)
   if (!mcp) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'MCP not found' } })
   const versions = await listVersions(mcp.id)
-  return res.json({ success: true, data: versions })
+  // Strip auth_header for public/non-owner callers; publisher's own org gets the decrypted value.
+  const ctx = { isOwner: isOwnerOf(req.caller?.org_id, mcp.org_id), isAuthenticated: !!req.caller }
+  return res.json({ success: true, data: serializeMcpVersions(versions, ctx) })
 })
 
 export default router

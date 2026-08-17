@@ -1,4 +1,5 @@
 import { getPool } from '../config/postgres'
+import { encrypt } from '../security/crypto'
 
 export interface McpRecord {
   id: string
@@ -101,10 +102,12 @@ export async function publishVersion(opts: {
   try {
     await client.query('BEGIN')
     await client.query(`UPDATE mcp_versions SET is_latest = false WHERE mcp_id = $1`, [opts.mcp_id])
+    // Encrypt the upstream credential at rest (A.8.11 / A.8.24). Pass-through when no key configured.
+    const encryptedAuthHeader = encrypt(opts.auth_header ?? null)
     const { rows } = await client.query<McpVersionRecord>(
       `INSERT INTO mcp_versions (mcp_id, version, endpoint_url, schema_url, changelog, transport_type, auth_header, is_latest, published_by)
        VALUES ($1,$2,$3,$4,$5,$6,$7,true,$8) RETURNING *`,
-      [opts.mcp_id, opts.version, opts.endpoint_url, opts.schema_url ?? null, opts.changelog ?? null, opts.transport_type ?? 'http', opts.auth_header ?? null, opts.published_by],
+      [opts.mcp_id, opts.version, opts.endpoint_url, opts.schema_url ?? null, opts.changelog ?? null, opts.transport_type ?? 'http', encryptedAuthHeader, opts.published_by],
     )
     await client.query(`UPDATE mcps SET updated_at = NOW() WHERE id = $1`, [opts.mcp_id])
     await client.query('COMMIT')
