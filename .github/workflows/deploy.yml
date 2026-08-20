@@ -3,7 +3,7 @@ name: Build and Push to Docker Hub
 on:
   push:
     branches:
-      - refat/test-2026
+      - refat/prod-2026
 
 jobs:
   build-and-push:
@@ -30,7 +30,7 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/platform-api:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/platform-api:${{ github.sha }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/platform-api-prod:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/platform-api-prod:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
