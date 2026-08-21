@@ -2,10 +2,16 @@ import { Pool } from 'pg'
 
 let pool: Pool | null = null
 
+export function resolveDatabaseUrl(): string | undefined {
+  return process.env.POSTGRESQLDBSANDBOXURI || process.env.DATABASE_URL || undefined
+}
+
 export function getPool(): Pool {
   if (!pool) {
-    pool = process.env.DATABASE_URL
-      ? new Pool({ connectionString: process.env.DATABASE_URL })
+    const connectionString = resolveDatabaseUrl()
+
+    pool = connectionString
+      ? new Pool({ connectionString })
       : new Pool({
           host:     process.env.POSTGRES_HOST     || 'localhost',
           port:     parseInt(process.env.POSTGRES_PORT || '5432', 10),

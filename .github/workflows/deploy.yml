@@ -3,7 +3,7 @@ name: Build and Push to Docker Hub
 on:
   push:
     branches:
-      - refat/prod-2026
+      - Ashutosh/prod-2026
 
 jobs:
   build-and-push:

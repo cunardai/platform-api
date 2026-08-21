@@ -7,7 +7,11 @@ import { config } from 'dotenv'
 config()
 
 const { Pool } = pg
-const pool = new Pool({ connectionString: process.env.DATABASE_URL })
+const connectionString = process.env.POSTGRESQLDBSANDBOXURI || process.env.DATABASE_URL
+if (!connectionString) {
+  throw new Error('Missing DB connection string. Set POSTGRESQLDBSANDBOXURI or DATABASE_URL.')
+}
+const pool = new Pool({ connectionString })
 const migrationsDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '../migrations')
 
 await pool.query(`CREATE TABLE IF NOT EXISTS _platform_migrations (name TEXT PRIMARY KEY, ran_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`)

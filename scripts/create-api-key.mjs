@@ -24,7 +24,11 @@ if (process.env.NODE_ENV === 'production' && FORCE) {
 }
 
 const { Pool } = pg
-const pool = new Pool({ connectionString: process.env.DATABASE_URL })
+const connectionString = process.env.POSTGRESQLDBSANDBOXURI || process.env.DATABASE_URL
+if (!connectionString) {
+  throw new Error('Missing DB connection string. Set POSTGRESQLDBSANDBOXURI or DATABASE_URL.')
+}
+const pool = new Pool({ connectionString })
 
 async function main() {
   // 0. Show orgs
