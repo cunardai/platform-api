@@ -3,12 +3,12 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "dev":     "tsx watch src/index.ts",
-    "build":   "tsc",
-    "start":   "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
     "migrate": "tsx src/db/migrate.ts",
     "migrate:encrypt-auth-header": "tsx src/migrations/encrypt-auth-header.ts",
-    "test":    "node --import tsx --test src/security/masking/mask.test.ts src/security/crypto.test.ts src/security/serializers.test.ts"
+    "test": "node --import tsx --test src/security/masking/mask.test.ts src/security/crypto.test.ts src/security/serializers.test.ts"
   },
   "keywords": [],
   "author": "",
@@ -38,5 +38,8 @@
     "@types/uuid": "^10.0.0",
     "tsx": "^4.21.0",
     "typescript": "^6.0.3"
+  },
+  "overrides": {
+    "esbuild": "^0.28.1"
   }
 }

@@ -60,7 +60,7 @@ export function encrypt(plaintext: string | null | undefined): string | null {
   const key = getKey()
   if (!key) return plaintext
   const iv = crypto.randomBytes(IV_BYTES)
-  const cipher = crypto.createCipheriv(ALGO, key, iv)
+  const cipher = crypto.createCipheriv(ALGO, key, iv, { authTagLength: TAG_BYTES })
   const ciphertext = Buffer.concat([cipher.update(String(plaintext), 'utf8'), cipher.final()])
   const tag = cipher.getAuthTag()
   return PREFIX + Buffer.concat([iv, tag, ciphertext]).toString('base64')
@@ -83,7 +83,11 @@ export function decrypt(value: string | null | undefined): string | null {
     const iv = raw.subarray(0, IV_BYTES)
     const tag = raw.subarray(IV_BYTES, IV_BYTES + TAG_BYTES)
     const ciphertext = raw.subarray(IV_BYTES + TAG_BYTES)
-    const decipher = crypto.createDecipheriv(ALGO, key, iv)
+    // Pin the GCM tag length and reject anything shorter. Without this a
+    // truncated tag (from a tampered/short payload) is far cheaper to forge and can
+    // leak the GCM authentication key.
+    if (tag.length !== TAG_BYTES) return value
+    const decipher = crypto.createDecipheriv(ALGO, key, iv, { authTagLength: TAG_BYTES })
     decipher.setAuthTag(tag)
     return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString('utf8')
   } catch {

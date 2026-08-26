@@ -10,7 +10,13 @@ function log(level: string, message: string, meta?: object) {
   if (isProduction) {
     process.stdout.write(JSON.stringify(entry) + '\n')
   } else {
-    console.log(`[${level.toUpperCase()}] ${safeMessage}`, safeMeta ?? '')
+    // Pass the message as an ARGUMENT, never as the format string. Building the
+    // first console.log arg by interpolation let a `%s`/`%d` inside the message
+    // swallow `safeMeta` as a substitution — forging the line and hiding the
+    // metadata. util.format does not re-scan substituted values, so specifiers
+    // arriving in `safeMessage` are now printed literally.
+    // CR/LF are collapsed as well, so a message cannot fake extra log lines.
+    console.log('[%s] %s', level.toUpperCase(), safeMessage.replace(/[\r\n]+/g, ' '), safeMeta ?? '')
   }
 }
 

@@ -1,13 +1,13 @@
 import { Router, Request, Response } from 'express'
 import Stripe from 'stripe'
 import { authenticate } from '../middleware/auth.middleware'
-import { config, PLAN_LIMITS } from '../config'
+import { config, PLAN_LIMITS, isStripeConfigured } from '../config'
 import { getOrCreateTenant, getTenant, setStripeCustomer, updateTenantFromStripe, getUsageCounts } from '../repositories/billing.repo'
 import { serializeTenantSubscription, isOwnerOf } from '../security/serializers'
 import { logger } from '../lib/logger'
 
 const router = Router()
-const stripeConfigured = config.stripe.secretKey && config.stripe.secretKey !== 'sk_test_placeholder'
+const stripeConfigured = isStripeConfigured()
 const stripe = stripeConfigured ? new Stripe(config.stripe.secretKey) : null
 
 function orgId(req: Request): string | null {

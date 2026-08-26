@@ -7,6 +7,26 @@ function requireEnv(name: string, fallback?: string): string {
   return value ?? fallback!
 }
 
+/** Sentinel meaning "no Stripe credentials supplied". Deliberately carries no
+ *  `sk_`/`whsec_` prefix so secret scanners don't flag it as a live key. */
+export const STRIPE_UNCONFIGURED = 'stripe-not-configured'
+
+/** Values that are NOT real Stripe credentials. `sk_test_placeholder` is the
+ *  historic default and is still present in deployed .env files, so it must
+ *  keep counting as "unconfigured" — otherwise billing would try to build a
+ *  Stripe client from a dummy key. */
+const STRIPE_PLACEHOLDERS: ReadonlySet<string> = new Set([
+  STRIPE_UNCONFIGURED,
+  'sk_test_placeholder',
+  'whsec_placeholder',
+])
+
+/** True only when a usable Stripe secret key is configured. */
+export function isStripeConfigured(secretKey: string | undefined = undefined): boolean {
+  const key = secretKey ?? config.stripe.secretKey
+  return !!key && !STRIPE_PLACEHOLDERS.has(key)
+}
+
 export const config = {
   nodeEnv: process.env.NODE_ENV || 'development',
   port: parseInt(process.env.PORT || '3004', 10),
@@ -15,8 +35,11 @@ export const config = {
     jwksUri:  requireEnv('AUTH_SERVICE_JWKS_URI', 'http://localhost:3003/.well-known/jwks.json'),
   },
   stripe: {
-    secretKey:     requireEnv('STRIPE_SECRET_KEY', 'sk_test_placeholder'),
-    webhookSecret: requireEnv('STRIPE_WEBHOOK_SECRET', 'whsec_placeholder'),
+    // NOTE: STRIPE_UNCONFIGURED (declared above) is a prefix-free sentinel on
+    // purpose — an `sk_test_`/`whsec_` shaped default trips secret scanners on
+    // every run, burying real findings under a permanent false positive.
+    secretKey:     requireEnv('STRIPE_SECRET_KEY', STRIPE_UNCONFIGURED),
+    webhookSecret: requireEnv('STRIPE_WEBHOOK_SECRET', STRIPE_UNCONFIGURED),
     prices: {
       starter: process.env.STRIPE_PRICE_STARTER ?? '',
       pro:     process.env.STRIPE_PRICE_PRO ?? '',
