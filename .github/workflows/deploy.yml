@@ -11,7 +11,7 @@ jobs:
     environment: dev-deploy
 
     env:
-      IMAGE_NAME: ashutoshbian/platform-api
+      IMAGE_NAME: arnabmitrabian/platform-api
       IMAGE_TAG: prod
       AZURE_WEBAPP_NAME: platform-api-bian
       AZURE_RESOURCE_GROUP: Common_Services
