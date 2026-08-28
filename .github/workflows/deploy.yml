@@ -1,4 +1,4 @@
-name: Build, Push and Deploy to Azure App Service
+name: Build and Push to Docker Hub
 
 on:
   push:
@@ -6,19 +6,9 @@ on:
       - Ashutosh/prod-2026
 
 jobs:
-  build-push-deploy:
+  build-and-push:
     runs-on: ubuntu-latest
     environment: dev-deploy
-
-    env:
-      ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
-      IMAGE_NAME: arnabmitrabian/platform-api
-      IMAGE_TAG: prod
-      AZURE_WEBAPP_NAME: platform-api-bian
-      AZURE_RESOURCE_GROUP: Common_Services
-      KEY_VAULT_URI: https://biansandboxkey.vault.azure.net
-      KEY_VAULT_SECRET_NAME: POSTGRESQLSANDBOXPLATEFORMAPIURI
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -26,25 +16,13 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Validate required secrets
-        shell: bash
-        run: |
-          if [ -z "${{ secrets.DOCKERHUB_USERNAME }}" ] || [ -z "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
-            echo "Missing Docker Hub secrets: DOCKERHUB_USERNAME and/or DOCKERHUB_TOKEN"
-            exit 1
-          fi
-          if [ -z "${{ secrets.AZURE_CREDENTIALS }}" ]; then
-            echo "Missing Azure secret: AZURE_CREDENTIALS"
-            exit 1
-          fi
-
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push release image
+      - name: Build and Push Image
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -52,47 +30,7 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: |
-            ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
-            ${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/platform-api-prod:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/platform-api-prod:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      - name: Azure login
-        uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      - name: Configure Azure App Service settings
-        uses: azure/cli@v2
-        with:
-          inlineScript: |
-            az webapp config appsettings set \
-              --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" \
-              --name "${{ env.AZURE_WEBAPP_NAME }}" \
-              --settings \
-                WEBSITES_PORT=3004 \
-                NODE_ENV=production \
-                POSTGRESQLSANDBOXPLATEFORMAPIURI="@Microsoft.KeyVault(SecretUri=${{ env.KEY_VAULT_URI }}/secrets/${{ env.KEY_VAULT_SECRET_NAME }}/)"
-
-      - name: Deploy container to Azure App Service
-        uses: azure/webapps-deploy@v3
-        with:
-          app-name: ${{ env.AZURE_WEBAPP_NAME }}
-          images: ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
-
-      - name: Verify app is healthy
-        uses: azure/cli@v2
-        with:
-          inlineScript: |
-            echo "Waiting for app to start..."
-            for i in {1..20}; do
-              STATUS=$(curl -s -o /tmp/platform_api_response.txt -w "%{http_code}" "https://platform-api-bian.azurewebsites.net/" || true)
-              if [ "$STATUS" = "200" ] || [ "$STATUS" = "301" ] || [ "$STATUS" = "302" ]; then
-                echo "App responded with HTTP $STATUS"
-                exit 0
-              fi
-              sleep 10
-            done
-            echo "App did not become healthy within timeout"
-            cat /tmp/platform_api_response.txt || true
-            exit 1
