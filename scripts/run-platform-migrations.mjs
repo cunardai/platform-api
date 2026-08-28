@@ -7,9 +7,9 @@ import { config } from 'dotenv'
 config()
 
 const { Pool } = pg
-const connectionString = process.env.POSTGRESQLDBSANDBOXURI || process.env.DATABASE_URL
+const connectionString = process.env.POSTGRESQLSANDBOXPLATEFORMAPIURI || process.env.DATABASE_URL
 if (!connectionString) {
-  throw new Error('Missing DB connection string. Set POSTGRESQLDBSANDBOXURI or DATABASE_URL.')
+  throw new Error('Missing DB connection string. Set POSTGRESQLSANDBOXPLATEFORMAPIURI or DATABASE_URL.')
 }
 const pool = new Pool({ connectionString })
 const migrationsDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '../migrations')

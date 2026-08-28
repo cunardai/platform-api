@@ -89,7 +89,7 @@ All authenticated endpoints require one of:
 
 ```bash
 cp .env.example .env
-# fill in POSTGRESQLDBSANDBOXURI (preferred Azure Key Vault secret), AUTH_SERVICE_JWKS_URI, STRIPE_* vars
+# fill in POSTGRESQLSANDBOXPLATEFORMAPIURI (preferred Azure Key Vault secret), AUTH_SERVICE_JWKS_URI, STRIPE_* vars
 
 npm install
 npm run dev      # tsx watch on port 3004
@@ -97,7 +97,7 @@ npm run dev      # tsx watch on port 3004
 
 Run the migration against your Postgres DB:
 ```bash
-psql "$POSTGRESQLDBSANDBOXURI" -f migrations/001_platform.sql
+psql "$POSTGRESQLSANDBOXPLATEFORMAPIURI" -f migrations/001_platform.sql
 ```
 
 ---
@@ -106,7 +106,7 @@ psql "$POSTGRESQLDBSANDBOXURI" -f migrations/001_platform.sql
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `POSTGRESQLDBSANDBOXURI` | ✓ | Preferred Azure Key Vault-backed Postgres connection string |
+| `POSTGRESQLSANDBOXPLATEFORMAPIURI` | ✓ | Preferred Azure Key Vault-backed Postgres connection string |
 | `DATABASE_URL` | — | Legacy fallback for local/dev environments |
 | `AUTH_SERVICE_ISSUER` | ✓ | Base URL of auth-service (e.g. `https://auth-service-jet-seven.vercel.app`) |
 | `AUTH_SERVICE_JWKS_URI` | ✓ | JWKS endpoint for RS256 verification |

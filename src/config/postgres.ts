@@ -3,7 +3,7 @@ import { Pool } from 'pg'
 let pool: Pool | null = null
 
 export function resolveDatabaseUrl(): string | undefined {
-  return process.env.POSTGRESQLDBSANDBOXURI || process.env.DATABASE_URL || undefined
+  return process.env.POSTGRESQLSANDBOXPLATEFORMAPIURI || process.env.DATABASE_URL || undefined
 }
 
 export function getPool(): Pool {
