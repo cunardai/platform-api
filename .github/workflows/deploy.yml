@@ -11,6 +11,7 @@ jobs:
     environment: dev-deploy
 
     env:
+      ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
       IMAGE_NAME: arnabmitrabian/platform-api
       IMAGE_TAG: prod
       AZURE_WEBAPP_NAME: platform-api-bian
