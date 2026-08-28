@@ -89,7 +89,7 @@ All authenticated endpoints require one of:
 
 ```bash
 cp .env.example .env
-# fill in POSTGRESQLSANDBOXPLATEFORMAPIURI (preferred Azure Key Vault secret), AUTH_SERVICE_JWKS_URI, STRIPE_* vars
+# fill in POSTGRESQLSANDBOXPLATEFORMAPIURI (preferred Azure App Service / Key Vault secret), AUTH_SERVICE_JWKS_URI, STRIPE_* vars
 
 npm install
 npm run dev      # tsx watch on port 3004
@@ -100,14 +100,20 @@ Run the migration against your Postgres DB:
 psql "$POSTGRESQLSANDBOXPLATEFORMAPIURI" -f migrations/001_platform.sql
 ```
 
+For Azure App Service deployment, add this application setting with the real Postgres connection string value:
+```text
+POSTGRESQLSANDBOXPLATEFORMAPIURI=postgresql://username:password@host:5432/database?sslmode=require
+```
+Do not set that value to the literal text `POSTGRESQLSANDBOXPLATEFORMAPIURI`.
+
 ---
 
 ## Environment variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `POSTGRESQLSANDBOXPLATEFORMAPIURI` | ✓ | Preferred Azure Key Vault-backed Postgres connection string |
-| `DATABASE_URL` | — | Legacy fallback for local/dev environments |
+| `POSTGRESQLSANDBOXPLATEFORMAPIURI` | ✓ | Preferred Azure App Service / Key Vault-backed Postgres connection string |
+| `DATABASE_URL` | — | Legacy fallback for local/dev environments only |
 | `AUTH_SERVICE_ISSUER` | ✓ | Base URL of auth-service (e.g. `https://auth-service-jet-seven.vercel.app`) |
 | `AUTH_SERVICE_JWKS_URI` | ✓ | JWKS endpoint for RS256 verification |
 | `STRIPE_SECRET_KEY` | ✓ | Stripe secret key (`sk_live_` or `sk_test_`) |

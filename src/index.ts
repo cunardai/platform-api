@@ -1,10 +1,11 @@
 import { app } from './app'
-import { getPool } from './config/postgres'
+import { getPool, requireDatabaseUrl } from './config/postgres'
 import { logger } from './lib/logger'
 import { config } from './config'
 
 async function start() {
   try {
+    requireDatabaseUrl()
     await getPool().query('SELECT 1')
     logger.info('Postgres connected')
   } catch (err) {
