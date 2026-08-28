@@ -174,4 +174,4 @@ curl -X POST https://auth-service-jet-seven.vercel.app/api-keys \
   -d '{"name": "my-key", "scopes": ["usage:write"], "expires_in_days": 365}'
 The response includes the raw key (sk_live_...). You use it with the platform-api via the X-Api-Key header:
 curl -H "X-Api-Key: sk_live_<key>" https://platform-api-roan.vercel.app/usage/events
-The platform-api validates it by SHA-256 hash lookup in the shared Neon api_keys table — no cross-service call needed.
+The platform-api validates it by SHA-256 hash lookup in the shared Neon api_keys table — no cross-service call needed
