@@ -1,10 +1,14 @@
 import dotenv from 'dotenv'
 dotenv.config()
 
-function requireEnv(name: string, fallback?: string): string {
-  const value = process.env[name]
-  if (!value && fallback === undefined) throw new Error(`[config] Required env var ${name} is not set.`)
-  return value ?? fallback!
+function requireEnv(names: string | string[], fallback?: string): string {
+  const candidates = Array.isArray(names) ? names : [names]
+  for (const name of candidates) {
+    const value = process.env[name]
+    if (value) return value
+  }
+  if (fallback === undefined) throw new Error(`[config] Required env var ${candidates.join(' or ')} is not set.`)
+  return fallback
 }
 
 export const config = {
@@ -15,7 +19,7 @@ export const config = {
     jwksUri:  requireEnv('AUTH_SERVICE_JWKS_URI', 'http://localhost:3003/.well-known/jwks.json'),
   },
   stripe: {
-    secretKey:     requireEnv('STRIPE_SECRET_KEY', 'sk_test_placeholder'),
+    secretKey:     requireEnv(['PLATEFORMAPISBSTRIPESECRETKEY', 'STRIPE_SECRET_KEY'], 'sk_test_placeholder'),
     webhookSecret: requireEnv('STRIPE_WEBHOOK_SECRET', 'whsec_placeholder'),
     prices: {
       starter: process.env.STRIPE_PRICE_STARTER ?? '',

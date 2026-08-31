@@ -116,7 +116,8 @@ Do not set that value to the literal text `POSTGRESQLSANDBOXPLATEFORMAPIURI`.
 | `DATABASE_URL` | — | Legacy fallback for local/dev environments only |
 | `AUTH_SERVICE_ISSUER` | ✓ | Base URL of auth-service (e.g. `https://auth-service-jet-seven.vercel.app`) |
 | `AUTH_SERVICE_JWKS_URI` | ✓ | JWKS endpoint for RS256 verification |
-| `STRIPE_SECRET_KEY` | ✓ | Stripe secret key (`sk_live_` or `sk_test_`) |
+| `PLATEFORMAPISBSTRIPESECRETKEY` | ✓ | Preferred Azure App Service / Key Vault-backed Stripe secret key |
+| `STRIPE_SECRET_KEY` | — | Legacy fallback for local/dev environments only (`sk_live_` or `sk_test_`) |
 | `STRIPE_WEBHOOK_SECRET` | ✓ | Stripe webhook signing secret (`whsec_`) |
 | `STRIPE_PRICE_STARTER` | — | Stripe price ID for the Starter plan |
 | `STRIPE_PRICE_PRO` | — | Stripe price ID for the Pro plan |
