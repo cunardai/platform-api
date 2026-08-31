@@ -4,11 +4,24 @@ on:
   push:
     branches:
       - Ashutosh/prod-2026
+  workflow_dispatch:
+    inputs:
+      target_webapp_name:
+        description: 'Azure Web App to configure and restart after the image is pushed (for migrating to another server, point this at the new app)'
+        required: false
+        default: platform-api-bian-keyVault
+      target_resource_group:
+        description: 'Resource group containing the target Web App'
+        required: false
+        default: Common_Services
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
     environment: dev-deploy
+    env:
+      TARGET_WEBAPP_NAME: ${{ github.event.inputs.target_webapp_name || 'platform-api-bian-keyVault' }}
+      TARGET_RESOURCE_GROUP: ${{ github.event.inputs.target_resource_group || 'Common_Services' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -35,20 +48,32 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # continue-on-error: AZURE_CREDENTIALS has not been set up correctly in
+      # this repo yet (see scripts/migrate-webapp.ps1 for the manual fallback
+      # this step is meant to replace), so a broken login here must not fail
+      # the whole run and block the Docker Hub push above.
       - name: Azure login
+        id: azure_login
         uses: azure/login@v2
+        continue-on-error: true
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Configure and restart platform-api-bian-keyVault
+      - name: Configure and restart target Web App
+        if: steps.azure_login.outcome == 'success'
         uses: azure/cli@v2
         with:
           inlineScript: |
             az webapp config container set \
-              --resource-group Common_Services \
-              --name platform-api-bian-keyVault \
+              --resource-group "${{ env.TARGET_RESOURCE_GROUP }}" \
+              --name "${{ env.TARGET_WEBAPP_NAME }}" \
               --docker-custom-image-name ${{ secrets.DOCKERHUB_USERNAME }}/platform-api-prod:latest \
               --docker-registry-server-url https://index.docker.io \
               --docker-registry-server-user ${{ secrets.DOCKERHUB_USERNAME }} \
               --docker-registry-server-password ${{ secrets.DOCKERHUB_TOKEN }}
-            az webapp restart --resource-group Common_Services --name platform-api-bian-keyVault
+            az webapp restart --resource-group "${{ env.TARGET_RESOURCE_GROUP }}" --name "${{ env.TARGET_WEBAPP_NAME }}"
+
+      - name: Warn if Azure deploy was skipped
+        if: steps.azure_login.outcome != 'success'
+        run: |
+          echo "::warning::Azure login failed (AZURE_CREDENTIALS secret is missing or malformed) - the image was pushed to Docker Hub but '${{ env.TARGET_WEBAPP_NAME }}' was NOT updated. Fix the AZURE_CREDENTIALS secret, or run scripts/migrate-webapp.ps1 -WebAppName '${{ env.TARGET_WEBAPP_NAME }}' -ResourceGroup '${{ env.TARGET_RESOURCE_GROUP }}' manually."
