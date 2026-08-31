@@ -34,3 +34,21 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/platform-api-prod:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Configure and restart platform-api-bian-keyVault
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            az webapp config container set \
+              --resource-group Common_Services \
+              --name platform-api-bian-keyVault \
+              --docker-custom-image-name ${{ secrets.DOCKERHUB_USERNAME }}/platform-api-prod:latest \
+              --docker-registry-server-url https://index.docker.io \
+              --docker-registry-server-user ${{ secrets.DOCKERHUB_USERNAME }} \
+              --docker-registry-server-password ${{ secrets.DOCKERHUB_TOKEN }}
+            az webapp restart --resource-group Common_Services --name platform-api-bian-keyVault
