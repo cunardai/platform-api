@@ -10,7 +10,7 @@
  * Properties:
  *  - NON-DESTRUCTIVE: only rewrites `auth_header`, one row at a time, inside a check.
  *  - IDEMPOTENT: rows already prefixed `enc:` are skipped; re-running is safe.
- *  - Requires a valid ENCRYPTION_KEY (64 hex). Without it `encrypt()` is a no-op, so the
+ *  - Requires a valid PLATEFORMAPISBENCRYPTIONKEY or ENCRYPTION_KEY (64 hex). Without it `encrypt()` is a no-op, so the
  *    migration refuses to run rather than silently "encrypting" to plaintext.
  *  - Never prints secret values (only row ids and counts).
  */
@@ -22,7 +22,7 @@ const APPLY = process.argv.includes('--apply')
 
 async function run(): Promise<void> {
   if (!isCryptoEnabled()) {
-    console.error('[encrypt-auth-header] ENCRYPTION_KEY is not set to a valid 64-hex key. Aborting (nothing to do).')
+    console.error('[encrypt-auth-header] PLATEFORMAPISBENCRYPTIONKEY/ENCRYPTION_KEY is not set to a valid 64-hex key. Aborting (nothing to do).')
     process.exit(1)
   }
 

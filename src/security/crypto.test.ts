@@ -58,3 +58,22 @@ test('malformed key disables crypto (pass-through)', () => {
   assert.equal(encrypt('x'), 'x')
   delete process.env.ENCRYPTION_KEY
 })
+
+test('prefers PLATEFORMAPISBENCRYPTIONKEY over legacy ENCRYPTION_KEY', () => {
+  const legacyKey = crypto.randomBytes(32).toString('hex')
+  process.env.PLATEFORMAPISBENCRYPTIONKEY = KEY
+  process.env.ENCRYPTION_KEY = legacyKey
+  const ct = encrypt('value')!
+  // decrypting under only the vault key should succeed (proves it was used to encrypt)
+  delete process.env.ENCRYPTION_KEY
+  assert.equal(decrypt(ct), 'value')
+  delete process.env.PLATEFORMAPISBENCRYPTIONKEY
+})
+
+test('falls back to ENCRYPTION_KEY when PLATEFORMAPISBENCRYPTIONKEY is unset', () => {
+  process.env.ENCRYPTION_KEY = KEY
+  assert.equal(isCryptoEnabled(), true)
+  const ct = encrypt('value')!
+  assert.equal(decrypt(ct), 'value')
+  delete process.env.ENCRYPTION_KEY
+})

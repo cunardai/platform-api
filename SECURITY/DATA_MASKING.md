@@ -45,13 +45,14 @@ Proven by `src/security/serializers.test.ts` (the `CRITICAL:` test).
 
 | Key | Env var | Format | If unset |
 |-----|---------|--------|----------|
-| Field encryption | `ENCRYPTION_KEY` | 64 hex chars (32 bytes) — `openssl rand -hex 32` | encryption disabled, values pass through as plaintext (degradable) |
+| Field encryption | `PLATEFORMAPISBENCRYPTIONKEY` (preferred, Azure Key Vault-backed) or `ENCRYPTION_KEY` (legacy local/dev fallback) | 64 hex chars (32 bytes) — `openssl rand -hex 32` | encryption disabled, values pass through as plaintext (degradable) |
 | Pseudonymisation HMAC | `PSEUDONYM_KEY` | any high-entropy secret | `pseudonymize()` falls back to plain SHA-256 |
 
 - Placeholders are in `.env.example`. Real keys live only in the deployment secret store.
 - Decryption failures (wrong key / tampering) return the stored value rather than throwing —
   availability-preserving; rotate the key and re-run the migration to recover.
-- Rotation of `ENCRYPTION_KEY` requires decrypt-with-old / re-encrypt-with-new (not yet automated).
+- Rotation of `ENCRYPTION_KEY` / `PLATEFORMAPISBENCRYPTIONKEY` requires decrypt-with-old /
+  re-encrypt-with-new (not yet automated).
 
 ## 4. Migration (RUN THIS)
 
@@ -59,7 +60,7 @@ Existing plaintext `auth_header` rows are backfilled by a **non-destructive, ide
 dry-run-by-default** migration:
 
 ```bash
-# 1. Ensure ENCRYPTION_KEY (64 hex) is set in the environment.
+# 1. Ensure PLATEFORMAPISBENCRYPTIONKEY or ENCRYPTION_KEY (64 hex) is set in the environment.
 # 2. Preview (writes nothing):
 npm run migrate:encrypt-auth-header
 # 3. Apply:
@@ -101,7 +102,7 @@ All other responses are unchanged (owner-scoped routes serialize as owner → no
 1. **Rotate the exposed secret files.** `env.production (1).local copy` and `env.production (2).local copy`
    were untracked but **not git-ignored** (now ignored, not deleted). Treat any secrets in them as
    compromised and rotate. Delete the local copies once rotated.
-2. **Set `ENCRYPTION_KEY` in every environment** and run the backfill migration; until then
+2. **Set `PLATEFORMAPISBENCRYPTIONKEY` (or `ENCRYPTION_KEY` locally) in every environment** and run the backfill migration; until then
    `auth_header` is stored as plaintext (still stripped from public responses).
 3. **Authorization gaps (not addressed here):**
    - `X-Org-Id` header lets a trusted API key act on behalf of an arbitrary org when the key has no

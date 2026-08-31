@@ -12,7 +12,9 @@
  *    input is returned as-is.
  *  - Idempotent encrypt: an already-`enc:` value is never double-encrypted.
  *
- * Key: ENCRYPTION_KEY must be 64 hex chars (= 32 bytes / 256 bits).
+ * Key: PLATEFORMAPISBENCRYPTIONKEY (preferred, Azure Key Vault-backed) or
+ * ENCRYPTION_KEY (legacy local/dev fallback) — either must be 64 hex chars
+ * (= 32 bytes / 256 bits).
  */
 import crypto from 'crypto'
 
@@ -23,14 +25,18 @@ const TAG_BYTES = 16
 
 let warnedBadKey = false
 
+function resolveKeyHex(): string | undefined {
+  return process.env.PLATEFORMAPISBENCRYPTIONKEY || process.env.ENCRYPTION_KEY
+}
+
 function getKey(): Buffer | null {
-  const hex = process.env.ENCRYPTION_KEY
+  const hex = resolveKeyHex()
   if (!hex) return null
   if (!/^[0-9a-fA-F]{64}$/.test(hex)) {
     if (!warnedBadKey) {
       // Never print the key itself.
       // eslint-disable-next-line no-console
-      console.warn('[crypto] ENCRYPTION_KEY is set but is not 64 hex chars (32 bytes); encryption disabled (pass-through).')
+      console.warn('[crypto] PLATEFORMAPISBENCRYPTIONKEY/ENCRYPTION_KEY is set but is not 64 hex chars (32 bytes); encryption disabled (pass-through).')
       warnedBadKey = true
     }
     return null
