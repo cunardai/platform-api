@@ -23,7 +23,7 @@ export const config = {
     webhookSecret: requireEnv('STRIPE_WEBHOOK_SECRET', 'whsec_placeholder'),
     prices: {
       starter: process.env.STRIPE_PRICE_STARTER ?? '',
-      pro:     process.env.STRIPE_PRICE_PRO ?? '',
+      pro:     requireEnv(['PLATEFORMAPISBSTRIPEPRICEPRO', 'STRIPE_PRICE_PRO'], ''),
     },
   },
   appBaseUrl: requireEnv('APP_BASE_URL', 'http://localhost:3004'),

@@ -120,7 +120,8 @@ Do not set that value to the literal text `POSTGRESQLSANDBOXPLATEFORMAPIURI`.
 | `STRIPE_SECRET_KEY` | — | Legacy fallback for local/dev environments only (`sk_live_` or `sk_test_`) |
 | `STRIPE_WEBHOOK_SECRET` | ✓ | Stripe webhook signing secret (`whsec_`) |
 | `STRIPE_PRICE_STARTER` | — | Stripe price ID for the Starter plan |
-| `STRIPE_PRICE_PRO` | — | Stripe price ID for the Pro plan |
+| `PLATEFORMAPISBSTRIPEPRICEPRO` | — | Preferred Azure App Service / Key Vault-backed Stripe price ID for the Pro plan |
+| `STRIPE_PRICE_PRO` | — | Legacy fallback for local/dev environments only |
 | `APP_BASE_URL` | — | Base URL for portal return redirects |
 | `NODE_ENV` | — | `development` or `production` |
 | `PORT` | — | Local port (default `3004`) |
