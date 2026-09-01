@@ -54,6 +54,15 @@ test('pseudonymize falls back to hash without key, uses HMAC with key', () => {
   delete process.env.PSEUDONYM_KEY
 })
 
+test('pseudonymize prefers PLATEFORMAPISBPSEUDONYMKEY over legacy PSEUDONYM_KEY', () => {
+  process.env.PLATEFORMAPISBPSEUDONYMKEY = 'vault-key'
+  process.env.PSEUDONYM_KEY = 'legacy-key'
+  const withVaultKey = pseudonymize('user-1')
+  delete process.env.PSEUDONYM_KEY
+  assert.equal(pseudonymize('user-1'), withVaultKey) // same result using only the vault key
+  delete process.env.PLATEFORMAPISBPSEUDONYMKEY
+})
+
 test('deepMaskObject handles null and primitives', () => {
   assert.equal(deepMaskObject(null), null)
   assert.equal(deepMaskObject(undefined), undefined)

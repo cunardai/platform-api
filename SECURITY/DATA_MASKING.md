@@ -46,7 +46,7 @@ Proven by `src/security/serializers.test.ts` (the `CRITICAL:` test).
 | Key | Env var | Format | If unset |
 |-----|---------|--------|----------|
 | Field encryption | `PLATEFORMAPISBENCRYPTIONKEY` (preferred, Azure Key Vault-backed) or `ENCRYPTION_KEY` (legacy local/dev fallback) | 64 hex chars (32 bytes) — `openssl rand -hex 32` | encryption disabled, values pass through as plaintext (degradable) |
-| Pseudonymisation HMAC | `PSEUDONYM_KEY` | any high-entropy secret | `pseudonymize()` falls back to plain SHA-256 |
+| Pseudonymisation HMAC | `PLATEFORMAPISBPSEUDONYMKEY` (preferred, Azure Key Vault-backed) or `PSEUDONYM_KEY` (legacy local/dev fallback) | any high-entropy secret | `pseudonymize()` falls back to plain SHA-256 |
 
 - Placeholders are in `.env.example`. Real keys live only in the deployment secret store.
 - Decryption failures (wrong key / tampering) return the stored value rather than throwing —

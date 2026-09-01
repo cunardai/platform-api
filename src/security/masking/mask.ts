@@ -45,11 +45,12 @@ export function hashValue(value: string | null | undefined): string {
 }
 
 /**
- * Stable pseudonym via HMAC-SHA256 keyed on `PSEUDONYM_KEY`.
+ * Stable pseudonym via HMAC-SHA256 keyed on `PLATEFORMAPISBPSEUDONYMKEY` (preferred,
+ * Azure Key Vault-backed) or `PSEUDONYM_KEY` (legacy local/dev fallback).
  * Falls back to a plain SHA-256 hash when no key is configured (still deterministic).
  */
 export function pseudonymize(value: string | null | undefined): string {
-  const key = process.env.PSEUDONYM_KEY
+  const key = process.env.PLATEFORMAPISBPSEUDONYMKEY || process.env.PSEUDONYM_KEY
   const input = String(value ?? '')
   if (!key) return hashValue(input)
   return crypto.createHmac('sha256', key).update(input).digest('hex')
