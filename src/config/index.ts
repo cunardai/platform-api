@@ -22,7 +22,7 @@ export const config = {
     secretKey:     requireEnv(['PLATEFORMAPISBSTRIPESECRETKEY', 'STRIPE_SECRET_KEY'], 'sk_test_placeholder'),
     webhookSecret: requireEnv('STRIPE_WEBHOOK_SECRET', 'whsec_placeholder'),
     prices: {
-      starter: process.env.STRIPE_PRICE_STARTER ?? '',
+      starter: requireEnv(['PLATEFORMAPISBSTRIPEPRICESTARTER', 'STRIPE_PRICE_STARTER'], ''),
       pro:     requireEnv(['PLATEFORMAPISBSTRIPEPRICEPRO', 'STRIPE_PRICE_PRO'], ''),
     },
   },

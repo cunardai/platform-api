@@ -119,7 +119,8 @@ Do not set that value to the literal text `POSTGRESQLSANDBOXPLATEFORMAPIURI`.
 | `PLATEFORMAPISBSTRIPESECRETKEY` | ✓ | Preferred Azure App Service / Key Vault-backed Stripe secret key |
 | `STRIPE_SECRET_KEY` | — | Legacy fallback for local/dev environments only (`sk_live_` or `sk_test_`) |
 | `STRIPE_WEBHOOK_SECRET` | ✓ | Stripe webhook signing secret (`whsec_`) |
-| `STRIPE_PRICE_STARTER` | — | Stripe price ID for the Starter plan |
+| `PLATEFORMAPISBSTRIPEPRICESTARTER` | — | Preferred Azure App Service / Key Vault-backed Stripe price ID for the Starter plan |
+| `STRIPE_PRICE_STARTER` | — | Legacy fallback for local/dev environments only |
 | `PLATEFORMAPISBSTRIPEPRICEPRO` | — | Preferred Azure App Service / Key Vault-backed Stripe price ID for the Pro plan |
 | `STRIPE_PRICE_PRO` | — | Legacy fallback for local/dev environments only |
 | `APP_BASE_URL` | — | Base URL for portal return redirects |
