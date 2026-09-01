@@ -62,8 +62,8 @@ jobs:
           # traceable to a build; `:latest` is neither, and something else may
           # already be pulling it.
           tags: |
-            ghcr.io/${{ steps.t.outputs.owner }}/platform-api:${{ steps.t.outputs.slug }}
-            ghcr.io/${{ steps.t.outputs.owner }}/platform-api:${{ steps.t.outputs.sha }}
+            ghcr.io/${{ steps.t.outputs.owner }}/platform-api:testing-v1
+            ghcr.io/${{ steps.t.outputs.owner }}/platform-api:testing-v1
           cache-from: type=gha,scope=platform-api
           cache-to: type=gha,scope=platform-api,mode=max
 
@@ -72,7 +72,7 @@ jobs:
           {
             echo "### platform-api"
             echo '```'
-            echo "ghcr.io/${{ steps.t.outputs.owner }}/platform-api:${{ steps.t.outputs.slug }}"
-            echo "ghcr.io/${{ steps.t.outputs.owner }}/platform-api:${{ steps.t.outputs.sha }}"
+            echo "ghcr.io/${{ steps.t.outputs.owner }}/platform-api:testing-v1"
+            echo "ghcr.io/${{ steps.t.outputs.owner }}/platform-api:testing-v1"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
