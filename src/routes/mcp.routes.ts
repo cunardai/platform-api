@@ -3,7 +3,7 @@ import { authenticate, optionalAuthenticate } from '../middleware/auth.middlewar
 import { createMcp, listMcps, getMcpById, getMcpBySlug, updateMcp, deleteMcp, publishVersion, listVersions } from '../repositories/mcp.repo'
 import { getOrCreateTenant, recordUsage } from '../repositories/billing.repo'
 import { getPool } from '../config/postgres'
-import { serializeMcpVersion, serializeMcpVersions, isOwnerOf } from '../security/serializers'
+import { serializeMcpVersion, serializeMcpVersions, isOwnerOf, isVisibleTo, browseScope } from '../security/serializers'
 
 const router = Router()
 
@@ -12,12 +12,16 @@ function orgId(req: Request): string | null {
 }
 
 // ─── GET /mcps — public registry browse ──────────────────────────────────────
+//
+// optionalAuthenticate so `?org=` can be checked against the caller's own org;
+// the route stays readable anonymously.
 
-router.get('/', async (req: Request, res: Response) => {
+router.get('/', optionalAuthenticate, async (req: Request, res: Response) => {
   const { org, limit, offset } = req.query as Record<string, string | undefined>
   const mcps = await listMcps({
-    org_id: org,
-    public_only: !org,
+    // `public_only: !org` used to mean any supplied org id switched the public
+    // filter off — so this enumerated another org's PRIVATE MCPs. See browseScope.
+    ...browseScope(org, req.caller?.org_id),
     limit: limit ? parseInt(limit, 10) : 50,
     offset: offset ? parseInt(offset, 10) : 0,
   })
@@ -31,7 +35,12 @@ router.get('/:idOrSlug', optionalAuthenticate, async (req: Request, res: Respons
   const mcp = idOrSlug.includes('-') && idOrSlug.length < 36
     ? await getMcpBySlug(idOrSlug)
     : (await getMcpById(idOrSlug)) ?? await getMcpBySlug(idOrSlug)
-  if (!mcp) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'MCP not found' } })
+  // A private MCP is 404 to anyone but its owner. Not 403: distinguishing
+  // "exists but forbidden" from "does not exist" confirms the id, which is the
+  // only thing an id-guessing caller is after.
+  if (!mcp || !isVisibleTo(req.caller?.org_id, mcp)) {
+    return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'MCP not found' } })
+  }
   const versions = await listVersions(mcp.id)
   // auth_header (upstream credential) is returned ONLY to the authenticated org that owns this MCP.
   const ctx = { isOwner: isOwnerOf(req.caller?.org_id, mcp.org_id), isAuthenticated: !!req.caller }
@@ -105,7 +114,12 @@ router.post('/:id/versions', authenticate, async (req: Request, res: Response) =
 
 router.get('/:id/versions', optionalAuthenticate, async (req: Request, res: Response) => {
   const mcp = await getMcpById((req.params as { id: string }).id)
-  if (!mcp) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'MCP not found' } })
+  // Same visibility rule as the parent record — otherwise a private MCP's
+  // endpoint URLs were readable through its versions even though the MCP
+  // itself is not meant to be visible.
+  if (!mcp || !isVisibleTo(req.caller?.org_id, mcp)) {
+    return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'MCP not found' } })
+  }
   const versions = await listVersions(mcp.id)
   // Strip auth_header for public/non-owner callers; publisher's own org gets the decrypted value.
   const ctx = { isOwner: isOwnerOf(req.caller?.org_id, mcp.org_id), isAuthenticated: !!req.caller }
