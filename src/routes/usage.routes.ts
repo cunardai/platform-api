@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express'
 import { authenticate } from '../middleware/auth.middleware'
+import { requireOrgRole, BILLING_WRITE_SCOPE } from '../middleware/authz'
 import { recordUsageEvent, listUsageEvents, getUsageSummary, getUsageTimeseries, listEventTypeConfigs, upsertEventTypeConfig, deleteEventTypeConfig, EventTypeConfig } from '../repositories/usage.repo'
 import { getOrCreateTenant } from '../repositories/billing.repo'
 import { getPool } from '../config/postgres'
@@ -87,7 +88,13 @@ router.get('/event-types', authenticate, async (req: Request, res: Response) => 
 })
 
 // ─── PUT /usage/event-types/:event_type ───────────────────────────────────────
-router.put('/event-types/:event_type', authenticate, async (req: Request, res: Response) => {
+//
+// PA-3. This sets what an event COSTS. Any authenticated member of the org
+// could previously PUT credit_cost: 0 and make their org's metered usage free
+// — a self-serve billing bypass, needing nothing but a login. Pricing is an
+// administrative decision, so it takes org admin (or a service caller, or an
+// API key explicitly granted BILLING_WRITE_SCOPE).
+router.put('/event-types/:event_type', authenticate, requireOrgRole('admin', BILLING_WRITE_SCOPE), async (req: Request, res: Response) => {
   const org = orgId(req)
   if (!org) return res.status(400).json({ success: false, error: { code: 'NO_ORG', message: 'Caller has no org_id' } })
   const event_type = req.params.event_type as string
@@ -100,7 +107,10 @@ router.put('/event-types/:event_type', authenticate, async (req: Request, res: R
 })
 
 // ─── DELETE /usage/event-types/:event_type ────────────────────────────────────
-router.delete('/event-types/:event_type', authenticate, async (req: Request, res: Response) => {
+//
+// Deleting a config drops the event back to its default cost, so it changes
+// pricing just as PUT does and carries the same gate.
+router.delete('/event-types/:event_type', authenticate, requireOrgRole('admin', BILLING_WRITE_SCOPE), async (req: Request, res: Response) => {
   const org = orgId(req)
   if (!org) return res.status(400).json({ success: false, error: { code: 'NO_ORG', message: 'Caller has no org_id' } })
   const event_type = req.params.event_type as string
