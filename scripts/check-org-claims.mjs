@@ -54,10 +54,24 @@ const PATTERNS = [
 
 // file → [{ what, why }]. A reason is mandatory; an entry without one fails.
 const ALLOWLIST = {
+  // The ONE sanctioned client-asserted org read on the platform. It is read
+  // only after the presented service token has been matched, in constant time,
+  // against a registered per-caller secret — and the caller may be restricted
+  // to a set of orgs, so naming an org it does not own is refused there rather
+  // than trusted here. requireService in middleware/authz.ts is what keeps
+  // privileged routes limited to this path.
+  'src/middleware/service-token.ts': [
+    {
+      what: "req.headers['x-on-behalf-of-org']",
+      why: 'resolveOnBehalfOfOrg runs only for a caller already identified by identifyServiceCaller (constant-time match against a registered per-caller secret), and rejects any org outside that caller allow-list. A user or API-key caller never reaches it.',
+    },
+  ],
+  // Kept for the branch where the service-token path still lives inline in the
+  // middleware, so this file is identical on both and merges cleanly.
   'src/middleware/auth.middleware.ts': [
     {
       what: "req.headers['x-on-behalf-of-org']",
-      why: 'The service-token path. Read only AFTER the shared service token is verified in constant time, and only for a caller the platform itself trusts — never for a user or API-key caller. This is the single sanctioned entry point; requireService in middleware/authz.ts is what keeps privileged routes limited to it.',
+      why: 'The service-token path. Read only AFTER the shared service token is verified in constant time, and only for a caller the platform itself trusts — never for a user or API-key caller. Superseded by middleware/service-token.ts, which adds per-caller secrets and an org allow-list.',
     },
   ],
 }
