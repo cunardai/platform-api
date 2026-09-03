@@ -1,0 +1,47 @@
+# X-2: block unverified org-identity reads before they reach a branch.
+#
+# The audit's finding across every service was the same — org identity taken
+# from a client header or body field and trusted without checking the caller
+# owns it. The fixes removed those reads; this stops the next one landing.
+#
+# Runs on pull requests as well as pushes, because the point is to catch the
+# read in review rather than after it has shipped.
+name: Authorization guard
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - refat/test-2026
+      - azure-deploy
+      - 'security/**'
+
+jobs:
+  authz-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Node
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4
+        with:
+          node-version: '20'
+
+      # The guard itself has no dependencies, so it runs before install and
+      # still reports even if the install step is broken.
+      - name: Check the guard's own patterns
+        run: node scripts/check-org-claims.mjs --self-test
+
+      - name: Check for unverified org-identity reads
+        run: node scripts/check-org-claims.mjs
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Test
+        run: npm test

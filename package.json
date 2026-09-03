@@ -8,7 +8,8 @@
     "start": "node dist/index.js",
     "migrate": "tsx src/db/migrate.ts",
     "migrate:encrypt-auth-header": "tsx src/migrations/encrypt-auth-header.ts",
-    "test": "node --import tsx --test src/security/masking/mask.test.ts src/security/crypto.test.ts src/security/serializers.test.ts"
+    "lint:authz": "node scripts/check-org-claims.mjs --self-test && node scripts/check-org-claims.mjs",
+    "test": "npm run lint:authz && node --import tsx --test src/security/masking/mask.test.ts src/security/crypto.test.ts src/security/serializers.test.ts src/security/visibility.test.ts src/middleware/authz.test.ts"
   },
   "keywords": [],
   "author": "",
