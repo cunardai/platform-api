@@ -33,6 +33,17 @@ export const config = {
   auth: {
     issuer:   requireEnv('AUTH_SERVICE_ISSUER',   'http://localhost:3003'),
     jwksUri:  requireEnv('AUTH_SERVICE_JWKS_URI', 'http://localhost:3003/.well-known/jwks.json'),
+    /**
+     * Audience an incoming access token must be addressed to.
+     *
+     * auth-service mints access tokens with `aud` = its issuer URL, so that is
+     * the default. It matters that this is checked at all: an id_token from the
+     * same issuer carries `aud` = the OAuth client_id, and is obtainable by any
+     * registered client — accepting one here would authenticate its bearer as
+     * that user. Override when the platform moves to a dedicated resource
+     * audience; it must then match what auth-service puts in `aud`.
+     */
+    expectedAudience: requireEnv('AUTH_EXPECTED_AUDIENCE', process.env.AUTH_SERVICE_ISSUER || 'http://localhost:3003'),
   },
   stripe: {
     // NOTE: STRIPE_UNCONFIGURED (declared above) is a prefix-free sentinel on

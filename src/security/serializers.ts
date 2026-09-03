@@ -27,6 +27,41 @@ export function isOwnerOf(callerOrgId: string | null | undefined, rowOrgId: stri
   return !!callerOrgId && !!rowOrgId && callerOrgId === rowOrgId
 }
 
+/**
+ * May this caller see this row AT ALL?
+ *
+ * The serializers above answer a narrower question — which FIELDS of a row a
+ * caller may see — and that was the only check on the single-record reads. A
+ * private MCP or agent was therefore fully readable by anyone who knew its id:
+ * name, description, endpoint URLs, the lot. Masking a secret column does not
+ * help when the row itself was never meant to be visible.
+ *
+ * Public rows are visible to everyone (that is what the registry is for);
+ * private rows only to the org that owns them.
+ */
+export function isVisibleTo(
+  callerOrgId: string | null | undefined,
+  row: { org_id: string | null; is_public: boolean },
+): boolean {
+  return row.is_public || isOwnerOf(callerOrgId, row.org_id)
+}
+
+/**
+ * Resolve `?org=` on a registry browse into a safe (org filter, public-only) pair.
+ *
+ * `public_only: !org` was the bug: supplying ANY org id switched the public
+ * filter off, so `GET /mcps?org=<someone-else>` enumerated that org's private
+ * records. Narrowing to your own org still shows your private rows; narrowing
+ * to anyone else's shows only what they published.
+ */
+export function browseScope(
+  requestedOrgId: string | undefined,
+  callerOrgId: string | null | undefined,
+): { org_id?: string; public_only: boolean } {
+  const isOwnOrg = !!requestedOrgId && isOwnerOf(callerOrgId, requestedOrgId)
+  return { org_id: requestedOrgId, public_only: !isOwnOrg }
+}
+
 // ─── MCP versions ─────────────────────────────────────────────────────────────
 
 export type SerializedMcpVersion = Omit<McpVersionRecord, 'auth_header'> & { auth_header?: string | null }

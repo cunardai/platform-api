@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express'
 import { authenticate, optionalAuthenticate } from '../middleware/auth.middleware'
 import { createAgent, listAgents, getAgentById, updateAgent, deleteAgent } from '../repositories/agent.repo'
-import { serializeAgent, isOwnerOf } from '../security/serializers'
+import { serializeAgent, isOwnerOf, isVisibleTo, browseScope } from '../security/serializers'
 
 const router = Router()
 
@@ -13,8 +13,9 @@ function orgId(req: Request): string | null {
 router.get('/', optionalAuthenticate, async (req: Request, res: Response) => {
   const { org, limit, offset } = req.query as Record<string, string | undefined>
   const agents = await listAgents({
-    org_id: org,
-    public_only: !org,
+    // See browseScope: `public_only: !org` let `?org=<someone-else>` list that
+    // org's PRIVATE agents.
+    ...browseScope(org, req.caller?.org_id),
     limit: limit ? parseInt(limit, 10) : 50,
     offset: offset ? parseInt(offset, 10) : 0,
   })
@@ -26,7 +27,11 @@ router.get('/', optionalAuthenticate, async (req: Request, res: Response) => {
 // GET /agents/:id
 router.get('/:id', optionalAuthenticate, async (req: Request, res: Response) => {
   const agent = await getAgentById((req.params as { id: string }).id)
-  if (!agent) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Agent not found' } })
+  // A private agent is 404 to anyone but its owner — masking system_prompt was
+  // not enough, the row itself was never meant to be visible.
+  if (!agent || !isVisibleTo(req.caller?.org_id, agent)) {
+    return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Agent not found' } })
+  }
   const ctx = { isOwner: isOwnerOf(req.caller?.org_id, agent.org_id), isAuthenticated: !!req.caller }
   return res.json({ success: true, data: serializeAgent(agent, ctx) })
 })
