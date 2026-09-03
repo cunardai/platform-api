@@ -13,7 +13,22 @@ declare global {
         user_id: string
         org_id: string | null
         scopes: string[]
-        via: 'jwt' | 'api_key'
+        /**
+         * How the caller authenticated. 'service' is the shared-service-token
+         * path that arrives with the credits/metering work (branch
+         * azure-deploy); it is in the union here so middleware/authz.ts is
+         * identical on both branches and merges without conflict.
+         */
+        via: 'jwt' | 'api_key' | 'service'
+        /**
+         * Caller's role in `org_id`, from the verified token's `org_role`
+         * claim. Undefined for API keys (org credentials carry scopes, not
+         * roles) and for tokens minted before auth-service sent the claim —
+         * middleware/authz.ts treats undefined as "deny", never as a default.
+         */
+        org_role?: string
+        /** From the verified token's `is_platform_admin` claim. */
+        is_platform_admin?: boolean
       }
     }
   }
@@ -35,6 +50,22 @@ function getSigningKey(kid: string): Promise<string> {
   })
 }
 
+/**
+ * Verify a bearer token from auth-service.
+ *
+ * `audience` is checked as well as `issuer` (PA-6). Without it, ANY token this
+ * issuer mints was accepted here — including an id_token, whose `aud` is the
+ * OAuth client_id and which is meant for the client, not for a resource
+ * server. An id_token is trivially obtainable by any registered client and
+ * carries `sub`/`org_id` all the same, so it would have authenticated a caller
+ * as that user. Access tokens are minted with `aud` = the issuer URL, so that
+ * is the expected audience; AUTH_EXPECTED_AUDIENCE overrides it for when the
+ * platform moves to a dedicated resource audience.
+ *
+ * `algorithms` is pinned to RS256 so a token cannot present alg:none or an
+ * HMAC over the public key. `kid` comes from the unverified header only to
+ * select a JWKS key — the signature check is what makes it trustworthy.
+ */
 async function verifyJwt(token: string): Promise<jwt.JwtPayload> {
   const decoded = jwt.decode(token, { complete: true })
   if (!decoded || typeof decoded === 'string') throw new Error('Invalid token structure')
@@ -42,7 +73,21 @@ async function verifyJwt(token: string): Promise<jwt.JwtPayload> {
   return jwt.verify(token, signingKey, {
     algorithms: ['RS256'],
     issuer: config.auth.issuer,
+    audience: config.auth.expectedAudience,
   }) as jwt.JwtPayload
+}
+
+/** Shape a verified access-token payload into req.caller. */
+function callerFromPayload(payload: jwt.JwtPayload): NonNullable<Request['caller']> {
+  return {
+    user_id: payload.sub ?? '',
+    org_id: (payload.org_id as string) ?? null,
+    scopes: (payload.scope as string ?? '').split(' ').filter(Boolean),
+    via: 'jwt',
+    // Passed through as-is; authz.ts validates the value before trusting it.
+    org_role: typeof payload.org_role === 'string' ? payload.org_role : undefined,
+    is_platform_admin: payload.is_platform_admin === true,
+  }
 }
 
 async function verifyApiKey(raw: string): Promise<{ user_id: string; org_id: string; scopes: string[] } | null> {
@@ -68,9 +113,11 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
         res.status(401).json({ success: false, error: { code: 'INVALID_API_KEY', message: 'API key is invalid, expired, or revoked' } })
         return
       }
-      // Allow trusted service to specify which org it's acting on behalf of
-      const orgOverride = req.headers['x-org-id'] as string | undefined
-      if (orgOverride && !record.org_id) record.org_id = orgOverride
+      // An X-Org-Id override used to be honoured here. It was dead code —
+      // verifyApiKey already returns null unless the key has an org_id, so the
+      // `!record.org_id` condition could never hold — but it is removed rather
+      // than left, because a client-supplied org header must never be able to
+      // set the org a request acts on. The key's own org is the only answer.
       req.caller = { ...record, via: 'api_key' }
       next()
       return
@@ -85,12 +132,7 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     try {
       const token = authHeader.slice(7)
       const payload = await verifyJwt(token)
-      req.caller = {
-        user_id: payload.sub ?? '',
-        org_id: (payload.org_id as string) ?? null,
-        scopes: (payload.scope as string ?? '').split(' ').filter(Boolean),
-        via: 'jwt',
-      }
+      req.caller = callerFromPayload(payload)
       next()
       return
     } catch (err) {
@@ -118,19 +160,10 @@ export async function optionalAuthenticate(req: Request, _res: Response, next: N
   try {
     if (apiKey?.startsWith('sk_live_')) {
       const record = await verifyApiKey(apiKey)
-      if (record) {
-        const orgOverride = req.headers['x-org-id'] as string | undefined
-        if (orgOverride && !record.org_id) record.org_id = orgOverride
-        req.caller = { ...record, via: 'api_key' }
-      }
+      if (record) req.caller = { ...record, via: 'api_key' }
     } else if (authHeader?.startsWith('Bearer ')) {
       const payload = await verifyJwt(authHeader.slice(7))
-      req.caller = {
-        user_id: payload.sub ?? '',
-        org_id: (payload.org_id as string) ?? null,
-        scopes: (payload.scope as string ?? '').split(' ').filter(Boolean),
-        via: 'jwt',
-      }
+      req.caller = callerFromPayload(payload)
     }
   } catch {
     // Invalid credentials on a public route → proceed as anonymous.
