@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express'
 import { authenticate } from '../middleware/auth.middleware'
+import { requireService } from '../middleware/authz'
 import { getBalance, grantCredits, chargeCredits } from '../repositories/credits.repo'
 import {
   computeCredits, listModelRates, upsertModelRate,
@@ -34,7 +35,7 @@ router.get('/balance', authenticate, async (req: Request, res: Response) => {
 // ─── POST /credits/grant ───────────────────────────────────────────────────────
 // Add credits (allowance refill / top-up). Provisioning a balance turns
 // enforcement ON for that scope. A negative amount removes credits.
-router.post('/grant', authenticate, async (req: Request, res: Response) => {
+router.post('/grant', authenticate, requireService, async (req: Request, res: Response) => {
   const org = orgId(req)
   if (!org) return res.status(400).json({ success: false, error: { code: 'NO_ORG', message: 'Caller has no org_id' } })
   const { amount, deployment_id } = req.body as { amount?: number; deployment_id?: string }
@@ -97,7 +98,7 @@ router.get('/model-rates', authenticate, async (_req: Request, res: Response) =>
   return res.json({ success: true, data: await listModelRates() })
 })
 
-router.put('/model-rates/:model', authenticate, async (req: Request, res: Response) => {
+router.put('/model-rates/:model', authenticate, requireService, async (req: Request, res: Response) => {
   const model = req.params.model as string
   const { input_per_mtok, output_per_mtok, cache_write_multiplier, cache_read_multiplier } = req.body as {
     input_per_mtok?: number; output_per_mtok?: number; cache_write_multiplier?: number; cache_read_multiplier?: number
@@ -117,7 +118,7 @@ router.get('/pricing-config', authenticate, async (req: Request, res: Response) 
   return res.json({ success: true, data: await listPricingConfig(org) })
 })
 
-router.put('/pricing-config', authenticate, async (req: Request, res: Response) => {
+router.put('/pricing-config', authenticate, requireService, async (req: Request, res: Response) => {
   const org = orgId(req)
   if (!org) return res.status(400).json({ success: false, error: { code: 'NO_ORG', message: 'Caller has no org_id' } })
   const { markup, credit_unit_usd, deployment_id, description } = req.body as {
